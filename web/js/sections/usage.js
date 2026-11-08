@@ -9,10 +9,13 @@ function windowLabel(ts) {
 
 // Renders the usage section with KPI totals, detail tables, cache stats, and latency.
 export async function render(main, signal) {
-  const [usageData, { models }, { tokens }, { providers }] = await Promise.all([
-    api('/usage'), api('/models'), api('/tokens'), api('/providers'),
+  const [usageData, { models }, { tokens }, { providers }, { settings }] = await Promise.all([
+    api('/usage'), api('/models'), api('/tokens'), api('/providers'), api('/settings'),
   ]);
+  const currency = settings.billing_currency ?? 'USD';
+  const fmtMoney = (value, code = currency) => `${Number(value || 0).toFixed(4)} ${code}`;
   const usage = usageData.usage;
+  const currencySummary = usageData.currencySummary ?? [];
   const maps = {
     model: new Map(models.map((model) => [model.id, model.name])),
     token: new Map(tokens.map((token) => [token.id, token.label ?? `#${token.id}`])),
@@ -38,8 +41,11 @@ export async function render(main, signal) {
     tokensOut: acc.tokensOut + row.tokens_out,
     cachedTokens: acc.cachedTokens + row.cached_tokens,
     cost: acc.cost + row.cost,
+    upstream: acc.upstream + (row.upstream_cost ?? 0),
+    downstream: acc.downstream + (row.downstream_cost ?? 0),
+    margin: acc.margin + (row.downstream_cost ?? 0) - (row.upstream_cost ?? row.cost) * (row.fx_rate ?? 1),
     saved: acc.saved + row.saved_cost,
-  }), { requests: 0, tokensIn: 0, tokensOut: 0, cachedTokens: 0, cost: 0, saved: 0 });
+  }), { requests: 0, tokensIn: 0, tokensOut: 0, cachedTokens: 0, cost: 0, upstream: 0, downstream: 0, margin: 0, saved: 0 });
 
   const cacheStats = usageData.cacheStats ?? [];
   const cacheTotals = cacheStats.reduce((acc, row) => ({
@@ -51,6 +57,14 @@ export async function render(main, signal) {
   const cacheLookups = cacheTotals.hits + cacheTotals.misses + cacheTotals.coalesced;
   const hitRate = cacheLookups > 0 ? ((cacheTotals.hits / cacheLookups) * 100).toFixed(1) : '0.0';
   const latency = usageData.latency ?? [];
+  const downstreamText = currencySummary.length
+    ? currencySummary.map((row) => fmtMoney(row.downstream_cost, row.currency ?? currency)).join(' · ')
+    : fmtMoney(totals.downstream);
+  const marginText = currencySummary.length
+    ? currencySummary.map((row) => (row.margin === null
+      ? `${row.currency ?? currency}: FX rate missing`
+      : fmtMoney(row.margin, row.currency ?? currency))).join(' · ')
+    : fmtMoney(totals.margin);
 
   main.innerHTML = `
     <div class="page-head section-enter">
@@ -64,12 +78,32 @@ export async function render(main, signal) {
       <div class="kpi"><div class="label">Requests</div><div class="value">${fmtNum(totals.requests)}</div></div>
       <div class="kpi"><div class="label">Tokens in / out</div><div class="value">${fmtNum(totals.tokensIn)} / ${fmtNum(totals.tokensOut)}</div></div>
       <div class="kpi"><div class="label">Cached tokens</div><div class="value">${fmtNum(totals.cachedTokens)}</div></div>
-      <div class="kpi"><div class="label">Estimated cost</div><div class="value">${fmtCost(totals.cost)}</div></div>
+      <div class="kpi"><div class="label">Estimated upstream</div><div class="value">${fmtCost(totals.cost)}</div></div>
+      <div class="kpi"><div class="label">Provider reported</div><div class="value">${totals.upstream > 0 ? fmtCost(totals.upstream) : '—'}</div></div>
+      <div class="kpi"><div class="label">Downstream billed</div><div class="value">${escapeHtml(downstreamText)}</div></div>
+      <div class="kpi"><div class="label">Margin</div><div class="value">${escapeHtml(marginText)}</div></div>
       <div class="kpi"><div class="label">Saved (provider cache)</div><div class="value">${fmtCost(totals.saved)}</div></div>
     </div>
+    ${currencySummary.length > 1 ? `<div class="card mt">
+      <div class="page-head"><div><h2>Currency groups</h2><p>Downstream billing and margin stay separate per currency; upstream estimates remain USD.</p></div></div>
+      <div class="table-scroll"><table class="data-table">
+        <thead><tr><th>Currency</th><th class="num">Requests</th><th class="num">Tokens in</th><th class="num">Tokens out</th><th class="num">Upstream (USD)</th><th class="num">Provider (USD)</th><th class="num">Downstream</th><th class="num">Margin</th></tr></thead>
+        <tbody>${currencySummary.map((row) => `
+          <tr>
+            <td>${escapeHtml(row.currency ?? currency)}</td>
+            <td class="num">${fmtNum(row.requests)}</td>
+            <td class="num">${fmtNum(row.tokens_in)}</td>
+            <td class="num">${fmtNum(row.tokens_out)}</td>
+            <td class="num">${fmtCost(row.cost)}</td>
+            <td class="num">${row.upstream_cost > 0 ? fmtCost(row.upstream_cost) : '—'}</td>
+            <td class="num">${fmtMoney(row.downstream_cost, row.currency ?? currency)}</td>
+            <td class="num">${row.margin === null ? '<span class="muted">FX rate missing</span>' : fmtMoney(row.margin, row.currency ?? currency)}</td>
+          </tr>`).join('')}</tbody>
+      </table></div>
+    </div>` : ''}
     <div class="card">
       ${usage.length ? `<div class="table-scroll"><table class="data-table">
-        <thead><tr><th>Day</th><th>Type</th><th>Name</th><th class="num">Requests</th><th class="num">Tokens in</th><th class="num">Tokens out</th><th class="num">Cached</th><th class="num">Est. cost</th><th class="num">Saved</th></tr></thead>
+        <thead><tr><th>Day</th><th>Type</th><th>Name</th><th class="num">Requests</th><th class="num">Tokens in</th><th class="num">Tokens out</th><th class="num">Cached</th><th class="num">Upstream</th><th class="num">Provider</th><th class="num">Downstream</th><th class="num">Saved</th></tr></thead>
         <tbody>${usage.map((row) => `
           <tr>
             <td>${windowLabel(row.window_start)}</td>
@@ -80,6 +114,8 @@ export async function render(main, signal) {
             <td class="num">${fmtNum(row.tokens_out)}</td>
             <td class="num">${fmtNum(row.cached_tokens)}</td>
             <td class="num">${fmtCost(row.cost)}</td>
+            <td class="num">${row.upstream_cost === null || row.upstream_cost === undefined ? '—' : fmtCost(row.upstream_cost)}</td>
+            <td class="num">${fmtMoney(row.downstream_cost, row.currency ?? currency)}</td>
             <td class="num">${fmtCost(row.saved_cost)}</td>
           </tr>`).join('')}</tbody>
       </table></div>` : emptyState('No usage yet', 'Data appears after the gateway processes requests.')}

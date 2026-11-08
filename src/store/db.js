@@ -53,6 +53,18 @@ export function runMigrations(db, migrationsDir, logger) {
       db.exec('COMMIT');
       count += 1;
       logger?.info('migration applied', { file });
+      if (file === '007_backfill_token_usage_events.sql') {
+        // One-time upgrade check so operators can see whether retained telemetry
+        // covered the pre-unification budget history.
+        try {
+          const legacy = db.prepare(`SELECT COUNT(*) AS n FROM telemetry
+            WHERE token_id IS NOT NULL AND is_probe = 0 AND status >= 200 AND status < 400`).get().n;
+          const events = db.prepare('SELECT COUNT(*) AS n FROM token_usage_events').get().n;
+          logger?.info('token usage backfill', { legacyRows: legacy, events, gap: Math.max(0, legacy - events) });
+        } catch (error) {
+          logger?.warn('token usage backfill check failed', { error: error.message });
+        }
+      }
     } catch (error) {
       db.exec('ROLLBACK');
       throw new Error(`Migration ${file} failed: ${error.message}`);

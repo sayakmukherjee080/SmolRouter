@@ -27,6 +27,28 @@ export class PinStore {
     this.map.delete(this.key(tokenId, modelId));
   }
 
+  // Removes every pin belonging to a token.
+  clearToken(tokenId) {
+    const prefix = `${tokenId}:`;
+    for (const key of this.map.keys()) {
+      if (key.startsWith(prefix)) this.map.delete(key);
+    }
+  }
+
+  // Removes every pin belonging to a model.
+  clearModel(modelId) {
+    for (const [key, pin] of this.map) {
+      if (pin.modelId === modelId) this.map.delete(key);
+    }
+  }
+
+  // Removes every pin pointing at a route.
+  clearRoute(routeId) {
+    for (const [key, pin] of this.map) {
+      if (pin.routeId === routeId) this.map.delete(key);
+    }
+  }
+
   // Counts how many tokens are currently pinned to a route for a model.
   countForRoute(modelId, routeId) {
     let count = 0;

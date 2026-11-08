@@ -12,10 +12,18 @@ function stableStringify(value, depth = 0) {
   return JSON.stringify(value ?? null);
 }
 
+// Removes fields that do not affect a non-stream JSON response body.
+function canonicalPayload(payload) {
+  const copy = { ...payload };
+  if (copy.stream === false) delete copy.stream;
+  if (copy.stream !== true) delete copy.stream_options;
+  return copy;
+}
+
 // Builds the deterministic cache key for a model and request payload, or null when unsafe.
 export function requestCacheKey(modelId, payload) {
   try {
-    return sha256Hex(`${modelId}:${stableStringify(payload)}`);
+    return sha256Hex(`${modelId}:${stableStringify(canonicalPayload(payload))}`);
   } catch {
     return null;
   }

@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createTestApp } from './helpers/app.js';
 import { startStubUpstream, jsonCompletion } from './helpers/upstream.js';
+import { PinStore } from '../src/gateway/pins.js';
 
 // Sends one chat completion through the gateway and drains the response.
 async function chat(baseUrl, raw, model = 'cached') {
@@ -123,4 +124,20 @@ test('cache-aware moves the pin when the pinned route hits its daily cap', async
   assert.equal(upstreamA.state.requests.length, 1, 'capped route not used again');
   assert.equal(upstreamB.state.requests.length, 1, 'replacement served the request');
   assert.equal(app.app.gateway.pins.get(token.token.id, model.id).routeId, routeB.id, 'pin moved to B');
+});
+
+test('pin cleanup drops every reference to deleted tokens, models, and routes', () => {
+  const pins = new PinStore();
+  pins.set(1, 10, 100, 1000);
+  pins.set(1, 11, 101, 1001);
+  pins.set(2, 10, 100, 1000);
+  pins.clearRoute(100);
+  assert.equal(pins.get(1, 10), null);
+  assert.equal(pins.get(2, 10), null);
+  assert.ok(pins.get(1, 11));
+  pins.clearModel(11);
+  assert.equal(pins.get(1, 11), null);
+  pins.set(3, 11, 102, 1002);
+  pins.clearToken(3);
+  assert.equal(pins.get(3, 11), null);
 });

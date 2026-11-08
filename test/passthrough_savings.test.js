@@ -121,5 +121,5 @@ test('soft budget warnings surface as client headers', async (t) => {
   });
   await response.text();
   assert.equal(response.headers.get('x-budget-warning'), 'daily_requests');
-  assert.match(response.headers.get('x-budget-remaining'), /daily_requests=2/);
+  assert.match(response.headers.get('x-budget-remaining'), /daily_requests=1/);
 });

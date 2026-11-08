@@ -57,6 +57,16 @@ test('admin API security and CRUD', async (t) => {
     assert.equal(response.status, 400);
   });
 
+  await t.test('non-object JSON bodies are rejected', async () => {
+    const response = await fetch(`${app.baseUrl}/api/v1/tokens`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: session.cookie, 'x-csrf-token': session.csrf },
+      body: '[]',
+    });
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).code, 'invalid_json');
+  });
+
   await t.test('full CRUD happy path', async () => {
     const provider = await request(app.baseUrl, '/providers', {
       method: 'POST', cookie: session.cookie, csrf: session.csrf,

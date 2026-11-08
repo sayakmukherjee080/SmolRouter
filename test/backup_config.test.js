@@ -110,3 +110,58 @@ test('config import merges new routes into an existing model', async (t) => {
   const routes = (await models.json()).data.models.find((item) => item.name === 'merge-model').routes;
   assert.equal(routes.length, 2, 'existing route kept, new route added');
 });
+
+test('config import rejects monetary data without currency metadata', async (t) => {
+  const source = await createTestApp();
+  const sourceSession = await adminLogin(source.baseUrl);
+  source.app.registry.createModel({ name: 'priced', downstreamInputCostPerM: 1 });
+  source.app.registry.createToken({
+    label: 'spend',
+    budgetRules: [{ metric: 'amount', period: 'day', limit_value: 5 }],
+  });
+  const exported = await request(source.baseUrl, '/config/export', { cookie: sourceSession.cookie });
+  const bundle = (await exported.json()).data.bundle;
+
+  const target = await createTestApp();
+  const targetSession = await adminLogin(target.baseUrl);
+  await t.after(async () => {
+    await source.close();
+    await target.close();
+  });
+
+  delete bundle.models[0].downstreamCurrency;
+  const missingModelCurrency = await request(target.baseUrl, '/config/import', {
+    method: 'POST', cookie: targetSession.cookie, csrf: targetSession.csrf, body: { bundle },
+  });
+  assert.equal(missingModelCurrency.status, 422);
+  assert.match((await missingModelCurrency.json()).error, /downstreamCurrency/);
+
+  const models = await request(target.baseUrl, '/models', { cookie: targetSession.cookie });
+  assert.equal((await models.json()).data.models.length, 0, 'validation happens before any writes');
+
+  bundle.models[0].downstreamCurrency = 'USD';
+  delete bundle.tokens[0].budgetRules[0].currency;
+  const missingRuleCurrency = await request(target.baseUrl, '/config/import', {
+    method: 'POST', cookie: targetSession.cookie, csrf: targetSession.csrf, body: { bundle },
+  });
+  assert.equal(missingRuleCurrency.status, 422);
+  assert.match((await missingRuleCurrency.json()).error, /currency metadata/);
+
+  bundle.tokens[0].budgetRules[0].currency = 'USD';
+  bundle.models[0].downstreamCurrency = 'EUR';
+  const mismatched = await request(target.baseUrl, '/config/import', {
+    method: 'POST', cookie: targetSession.cookie, csrf: targetSession.csrf, body: { bundle },
+  });
+  assert.equal(mismatched.status, 422);
+  assert.match((await mismatched.json()).error, /does not match billing currency/);
+  const stillEmpty = await request(target.baseUrl, '/models', { cookie: targetSession.cookie });
+  assert.equal((await stillEmpty.json()).data.models.length, 0, 'currency mismatch writes nothing');
+
+  bundle.models[0].downstreamCurrency = 'USD';
+  bundle.tokens[0].budgetRules = { metric: 'requests' };
+  const malformedRules = await request(target.baseUrl, '/config/import', {
+    method: 'POST', cookie: targetSession.cookie, csrf: targetSession.csrf, body: { bundle },
+  });
+  assert.equal(malformedRules.status, 422);
+  assert.match((await malformedRules.json()).error, /budgetRules must be an array/);
+});

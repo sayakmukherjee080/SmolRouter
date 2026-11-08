@@ -11,10 +11,12 @@ function readUsageObject(usage) {
     ?? usage.prompt_cache_hit_tokens
     ?? usage.cache_read_input_tokens
     ?? 0;
+  const upstreamCost = Number(usage.cost);
   return {
     inputTokens: Number.isFinite(input) ? input : 0,
     outputTokens: Number.isFinite(output) ? output : 0,
     cachedTokens: Number.isFinite(cached) ? cached : 0,
+    upstreamCost: Number.isFinite(upstreamCost) ? upstreamCost : null,
   };
 }
 

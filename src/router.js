@@ -1,5 +1,6 @@
-// Top-level request router: health, gateway API, admin API, and static UI.
+// Top-level request router: health, gateway API, pricing/quota, admin API, and static UI.
 import { envelopeError, openAiError } from './util/body.js';
+import { authenticate } from './gateway/auth.js';
 
 // Builds the router bound to all application subsystems.
 export function createRouter({ gateway, adminApi, staticServer, db, metrics, registry, config }) {
@@ -32,6 +33,14 @@ export function createRouter({ gateway, adminApi, staticServer, db, metrics, reg
     }
     if (pathname === '/v1/models' && method === 'GET') {
       return gateway.handleModels(request);
+    }
+    if ((pathname === '/model/info' || pathname === '/key/info') && method === 'GET') {
+      const auth = authenticate(request, registry);
+      if (auth.error) return auth.error;
+      const payload = pathname === '/model/info'
+        ? await gateway.modelInfo(auth.token)
+        : gateway.keyInfo(auth.token);
+      return Response.json(payload);
     }
     if (pathname.startsWith('/v1/') && method === 'POST') {
       return gateway.handleProxy(request, pathname.slice(3));

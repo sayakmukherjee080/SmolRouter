@@ -75,6 +75,9 @@ export async function render(main, signal) {
           <label class="field"><span>Usage parse cap (bytes)</span>
             <input name="usage_parse_max_bytes" type="number" min="1024" value="${escapeHtml(settings.usage_parse_max_bytes)}">
           </label>
+          <label class="field"><span>Non-stream cost-header capture cap (bytes)</span>
+            <input name="nonstream_capture_max_bytes" type="number" min="1024" value="${escapeHtml(settings.nonstream_capture_max_bytes)}">
+          </label>
         </div>
         <p class="form-error hidden" data-error></p>
         <div class="form-actions"><button class="btn primary" type="submit">Save gateway</button></div>
@@ -164,7 +167,24 @@ export async function render(main, signal) {
           <label class="field"><span>Usage retention (days, min 32)</span>
             <input name="usage_retention_days" type="number" min="32" value="${escapeHtml(settings.usage_retention_days)}">
           </label>
+          <label class="field"><span>Budget event retention (days, min 32)</span>
+            <input name="token_usage_retention_days" type="number" min="32" value="${escapeHtml(settings.token_usage_retention_days)}">
+          </label>
+          <label class="field"><span>Billing currency (ISO 4217)</span>
+            <input name="billing_currency" value="${escapeHtml(settings.billing_currency)}" maxlength="3" placeholder="USD">
+          </label>
+          <label class="field"><span>FX cache TTL (ms)</span>
+            <input name="fx_cache_ttl_ms" type="number" min="60000" value="${escapeHtml(settings.fx_cache_ttl_ms)}">
+          </label>
+          <label class="field"><span>FX maximum stale age (ms)</span>
+            <input name="fx_max_stale_ms" type="number" min="60000" value="${escapeHtml(settings.fx_max_stale_ms)}">
+          </label>
         </div>
+        <label class="switch">
+          <input type="checkbox" name="convert_currency">
+          <span class="track"></span>
+          <span>Convert model prices and amount limits when changing billing currency</span>
+        </label>
         <label class="switch">
           <input type="checkbox" name="response_cache_enabled"${settings.response_cache_enabled ? ' checked' : ''}>
           <span class="track"></span>
@@ -178,6 +198,17 @@ export async function render(main, signal) {
         <div class="form-actions"><button class="btn primary" type="submit">Save cache</button></div>
       </form>
     </div>
+
+    ${settings.legacy_amount_review?.review ? `<div class="card mt">
+      <div class="page-head">
+        <div>
+          <h2>Legacy amount review</h2>
+          <p>Pre-feature spend caps and events were recorded in USD. This instance bills in ${escapeHtml(settings.legacy_amount_review.currency)}.</p>
+        </div>
+        <span class="badge warn">review</span>
+      </div>
+      <p class="muted">${escapeHtml(settings.legacy_amount_review.amountRules)} amount rules, ${escapeHtml(settings.legacy_amount_review.legacyCaps)} legacy spend caps, and ${escapeHtml(settings.legacy_amount_review.legacyEvents)} legacy billing events exist. Verify or recreate them before relying on amount budgets.</p>
+    </div>` : ''}
 
     <div class="card mt">
       <div class="page-head"><div><h2>Timers (restart)</h2><p>Intervals are read at startup; save now and restart to apply.</p></div></div>
@@ -269,6 +300,7 @@ export async function render(main, signal) {
     probe_max_tokens: num(form, 'probe_max_tokens'),
     max_body_bytes: num(form, 'max_body_bytes'),
     usage_parse_max_bytes: num(form, 'usage_parse_max_bytes'),
+    nonstream_capture_max_bytes: num(form, 'nonstream_capture_max_bytes'),
   }));
   bindForm('form-security', (form) => ({
     ip_rate_limit: num(form, 'ip_rate_limit'),
@@ -289,6 +321,11 @@ export async function render(main, signal) {
     budget_warn_ratio: num(form, 'budget_warn_ratio'),
     telemetry_retention_days: num(form, 'telemetry_retention_days'),
     usage_retention_days: num(form, 'usage_retention_days'),
+    token_usage_retention_days: num(form, 'token_usage_retention_days'),
+    billing_currency: form.billing_currency.value,
+    fx_cache_ttl_ms: num(form, 'fx_cache_ttl_ms'),
+    fx_max_stale_ms: num(form, 'fx_max_stale_ms'),
+    convertCurrency: form.convert_currency.checked,
     response_cache_enabled: form.response_cache_enabled.checked,
   }));
   bindForm('form-timers', (form) => ({

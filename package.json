@@ -10,6 +10,7 @@
   "scripts": {
     "setup": "node setup.js",
     "start": "node src/server.js",
+    "db:restore": "node scripts/restore_backup.js",
     "test": "node --test \"test/*.test.js\""
   },
   "license": "AGPL-3.0-only"

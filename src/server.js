@@ -16,6 +16,7 @@ import { Telemetry } from './gateway/telemetry.js';
 import { createGateway } from './gateway/forward.js';
 import { createProbeScheduler } from './gateway/probe.js';
 import { createMetrics } from './gateway/metrics.js';
+import { createFx } from './gateway/fx.js';
 import { createSessionManager } from './admin/session.js';
 import { createAdminApi } from './admin/api.js';
 import { createStaticServer } from './admin/static.js';
@@ -31,15 +32,16 @@ export function createApp({ config, db, logger }) {
   registry.writer = telemetry;
   registry.load();
   const metrics = createMetrics();
+  const fx = createFx({ config, registry });
   let probe = null;
   const gateway = createGateway({
-    registry, config, telemetry, logger, metrics, onRouteStateChange: () => probe?.schedule(),
+    registry, config, telemetry, logger, metrics, fx, onRouteStateChange: () => probe?.schedule(),
   });
   probe = createProbeScheduler({ registry, config, logger, runProbe: gateway.runProbe });
   const session = createSessionManager({ registry, config, logger });
   const backups = createBackupManager({ db, registry, config, logger });
   const maintenance = createMaintenanceManager({ db, registry, config, logger });
-  const adminApi = createAdminApi({ registry, session, config, logger, backups, gateway });
+  const adminApi = createAdminApi({ registry, session, config, logger, backups, gateway, fx, telemetry });
   const staticServer = createStaticServer({ webRoot: path.join(ROOT, 'web') });
   const handle = createRouter({ gateway, adminApi, staticServer, db, metrics, registry, config });
   return { handle, registry, telemetry, probe, gateway, session, metrics, backups, maintenance, db };

@@ -45,7 +45,7 @@ test('daily spend budget blocks after estimated cost crosses the limit', async (
     modelId: model.id, providerId: provider.id, upstreamModel: 'u',
     inputCostPerM: 1, outputCostPerM: 1,
   });
-  const { token, raw } = app.app.registry.createToken({ label: 'spender', dailySpendLimit: 0.00001 });
+  const { token, raw } = app.app.registry.createToken({ label: 'spender', dailySpendLimit: 0.00002 });
   app.app.registry.setTokenModels(token.id, [model.id]);
   await t.after(async () => {
     await app.close();

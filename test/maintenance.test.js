@@ -15,7 +15,7 @@ test('retention prunes telemetry and usage but never audit rows', async (t) => {
     await upstream.close();
   });
 
-  const old = Date.now() - 10 * 86400000;
+  const old = Date.now() - 40 * 86400000;
   app.db.prepare(`INSERT INTO telemetry (ts, status, latency_ms) VALUES (?, 200, 1)`).run(old);
   app.db.prepare(`INSERT INTO usage (entity, entity_id, window_start, requests) VALUES ('model', ?, ?, 1)`)
     .run(model.id, old);
@@ -43,6 +43,30 @@ test('current-month usage rows are never pruned', async (t) => {
   const result = app.app.maintenance.run();
   assert.equal(result.deletedUsage, 0, 'current month survives even with a tiny retention window');
   assert.equal(app.db.prepare('SELECT COUNT(*) AS c FROM usage').get().c, 1);
+});
+
+test('token usage events inside an active budget window are never pruned', async (t) => {
+  const app = await createTestApp();
+  await t.after(() => app.close());
+
+  const day = 86400000;
+  const now = Date.now();
+  const anchor = new Date(now - 52 * day).toISOString().slice(0, 10);
+  const { token } = app.app.registry.createToken({
+    label: 'long-window',
+    budgetRules: [{ metric: 'tokens_total', period: 'n_days', period_count: 60, limit_value: 100000, anchor }],
+  });
+  const insert = app.db.prepare(`INSERT INTO token_usage_events
+    (ts, token_id, requests, tokens_in, tokens_out, downstream_cost, currency, fx_rate, is_cache)
+    VALUES (?, ?, 1, 1, 1, 0, 'USD', 1, 0)`);
+  insert.run(now - 50 * day, token.id);
+  insert.run(now - 70 * day, token.id);
+  app.app.registry.setSetting('token_usage_retention_days', 32);
+
+  app.app.maintenance.run();
+  const remaining = app.db.prepare('SELECT ts FROM token_usage_events ORDER BY ts').all();
+  assert.equal(remaining.length, 1, 'the event inside the active window survives');
+  assert.equal(remaining[0].ts, now - 50 * day);
 });
 
 test('failed telemetry flush restores dirty route state', async (t) => {

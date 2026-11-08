@@ -44,6 +44,7 @@ test('streaming usage is captured and stream_options injected', async (t) => {
   const usage = app.db.prepare("SELECT * FROM usage WHERE entity = 'model'").get();
   assert.equal(usage.requests, 1);
   assert.equal(usage.tokens_in, 10);
+  assert.equal(app.app.registry.activeRequests, 0, 'completed stream released its active slot');
 });
 
 test('non-streaming usage is captured', async (t) => {

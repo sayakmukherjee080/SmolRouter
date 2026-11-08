@@ -52,5 +52,5 @@ test('capped route alone yields 502', async (t) => {
   });
 
   assert.equal(await chat(app.baseUrl, raw), 200);
-  assert.equal(await chat(app.baseUrl, raw), 502);
+  assert.equal(await chat(app.baseUrl, raw), 429);
 });

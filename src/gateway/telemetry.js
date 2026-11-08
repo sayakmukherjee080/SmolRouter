@@ -1,4 +1,4 @@
-// Asynchronous telemetry writer: batches events, usage aggregates, route state, and audit rows.
+// Asynchronous telemetry writer: batches events, usage, cache stats, rule usage, and audit rows.
 import { dayWindow } from '../store/windows.js';
 
 export class Telemetry {
@@ -19,23 +19,36 @@ export class Telemetry {
   prepareStatements() {
     this.insertEvent = this.db.prepare(`INSERT INTO telemetry
       (ts, token_id, model_id, route_id, provider_key_id, attempt, status, latency_ms,
-       input_tokens, output_tokens, cached_tokens, est_cost, saved_cost, bytes, estimated, is_probe, error)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+       input_tokens, output_tokens, cached_tokens, est_cost, saved_cost, bytes, estimated, is_probe, error,
+       upstream_cost, downstream_cost, currency, fx_rate)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     this.insertAudit = this.db.prepare(`INSERT INTO audit
       (ts, actor, action, resource_type, resource_id, ip, outcome, details)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
     this.updateRoute = this.db.prepare(`UPDATE routes SET consecutive_failures = ?, cooldown_until = ?, last_probe_at = ?
       WHERE id = ?`);
+    this.insertTokenUsage = this.db.prepare(`INSERT INTO token_usage_events
+      (ts, token_id, requests, tokens_in, tokens_out, downstream_cost, currency, fx_rate, is_cache)
+      VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?)`);
     this.upsertUsage = this.db.prepare(`INSERT INTO usage
-      (entity, entity_id, window_start, requests, tokens_in, tokens_out, cached_tokens, cost, saved_cost)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(entity, entity_id, window_start) DO UPDATE SET
+      (entity, entity_id, window_start, currency, requests, tokens_in, tokens_out, cached_tokens, cost, saved_cost,
+       upstream_cost, downstream_cost, fx_rate)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(entity, entity_id, window_start, currency) DO UPDATE SET
         requests = requests + excluded.requests,
         tokens_in = tokens_in + excluded.tokens_in,
         tokens_out = tokens_out + excluded.tokens_out,
         cached_tokens = cached_tokens + excluded.cached_tokens,
         cost = cost + excluded.cost,
-        saved_cost = saved_cost + excluded.saved_cost`);
+        saved_cost = saved_cost + excluded.saved_cost,
+        upstream_cost = COALESCE(upstream_cost, 0) + COALESCE(excluded.upstream_cost, 0),
+        downstream_cost = downstream_cost + excluded.downstream_cost,
+        fx_rate = CASE
+          WHEN requests + excluded.requests <= 0 THEN COALESCE(excluded.fx_rate, fx_rate)
+          ELSE ((COALESCE(fx_rate, excluded.fx_rate) * requests)
+            + (COALESCE(excluded.fx_rate, fx_rate) * excluded.requests))
+            / (requests + excluded.requests)
+        END`);
     this.upsertCache = this.db.prepare(`INSERT INTO cache_stats
       (window_start, model_id, hits, misses, coalesced, saved_cost, saved_tokens_in, saved_tokens_out)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -84,6 +97,11 @@ export class Telemetry {
     await this.flush();
   }
 
+  // Returns whether billing-bearing events are still buffered.
+  hasPendingBilling() {
+    return this.events.some((event) => !event.isProbe) || this.cacheEvents.length > 0;
+  }
+
   // Drains buffers into SQLite inside a single transaction.
   async flush() {
     if (this.pending) return this.pending;
@@ -107,25 +125,45 @@ export class Telemetry {
     try {
       this.db.exec('BEGIN IMMEDIATE');
       for (const event of events) {
+        const currency = event.currency ?? this.defaultCurrency();
         this.insertEvent.run(
           event.ts, event.tokenId ?? null, event.modelId ?? null, event.routeId ?? null,
           event.providerKeyId ?? null, event.attempt ?? 1, event.status, event.latencyMs,
           event.inputTokens ?? 0, event.outputTokens ?? 0, event.cachedTokens ?? 0,
           event.estCost ?? 0, event.savedCost ?? 0, event.bytes ?? 0,
           event.estimated ? 1 : 0, event.isProbe ? 1 : 0, event.error ?? null,
+          event.upstreamCost ?? null, event.downstreamCost ?? 0, currency, event.fxRate ?? null,
         );
-        this.accumulateUsage(usage, event);
-      }
-      for (const entry of usage.values()) {
-        this.upsertUsage.run(entry.entity, entry.entityId, entry.window, entry.requests,
-          entry.tokensIn, entry.tokensOut, entry.cachedTokens, entry.cost, entry.savedCost);
+        this.accumulateUsage(usage, event, currency);
+        if (event.tokenId && !event.isProbe && event.status >= 200 && event.status < 400) {
+          this.insertTokenUsage.run(
+            event.ts, event.tokenId, event.inputTokens ?? 0, event.outputTokens ?? 0,
+            event.downstreamCost ?? 0, currency, event.fxRate ?? null, 0,
+          );
+        }
       }
       for (const event of cacheEvents) {
+        const currency = event.currency ?? this.defaultCurrency();
         this.accumulateCache(cacheStats, event);
+        if ((event.outcome === 'hit' || event.outcome === 'coalesced') && event.tokenId) {
+          this.insertTokenUsage.run(
+            event.ts, event.tokenId, event.inputTokens ?? 0, event.outputTokens ?? 0,
+            event.downstreamCost ?? 0, currency, event.fxRate ?? null, 1,
+          );
+          this.accumulateTokenUsage(usage, event, currency);
+        }
       }
       for (const entry of cacheStats.values()) {
         this.upsertCache.run(entry.window, entry.modelId, entry.hits, entry.misses,
           entry.coalesced, entry.savedCost, entry.savedTokensIn, entry.savedTokensOut);
+      }
+      // Token usage entries added after the first loop must be written too.
+      for (const entry of usage.values()) {
+        if (entry.persisted) continue;
+        this.upsertUsage.run(entry.entity, entry.entityId, entry.window, entry.currency, entry.requests,
+          entry.tokensIn, entry.tokensOut, entry.cachedTokens, entry.cost, entry.savedCost,
+          entry.upstreamCost, entry.downstreamCost, entry.fxRate);
+        entry.persisted = true;
       }
       for (const route of routes) {
         this.updateRoute.run(route.consecutiveFailures, route.cooldownUntil, route.lastProbeAt, route.id);
@@ -153,6 +191,11 @@ export class Telemetry {
     }
   }
 
+  // Returns the active billing currency for events without an explicit one.
+  defaultCurrency() {
+    return String(this.registry.setting('billing_currency', this.config.billingCurrency)).toUpperCase();
+  }
+
   // Folds one cache decision into per-model/day aggregates.
   accumulateCache(bucket, event) {
     const window = dayWindow(event.ts ?? Date.now());
@@ -170,10 +213,29 @@ export class Telemetry {
     bucket.set(key, entry);
   }
 
+  // Folds one cache hit/coalesced request into token usage aggregates.
+  accumulateTokenUsage(bucket, event, currency = null) {
+    const window = dayWindow(event.ts ?? Date.now());
+    const activeCurrency = currency ?? event.currency ?? this.defaultCurrency();
+    const key = `token:${event.tokenId}:${window}:${activeCurrency}`;
+    const entry = bucket.get(key) || {
+      entity: 'token', entityId: event.tokenId, window, currency: activeCurrency, requests: 0,
+      tokensIn: 0, tokensOut: 0, cachedTokens: 0, cost: 0, savedCost: 0,
+      upstreamCost: 0, downstreamCost: 0, fxRate: event.fxRate ?? null,
+    };
+    entry.requests += 1;
+    entry.tokensIn += event.inputTokens ?? 0;
+    entry.tokensOut += event.outputTokens ?? 0;
+    entry.downstreamCost += event.downstreamCost ?? 0;
+    entry.fxRate = event.fxRate ?? entry.fxRate;
+    bucket.set(key, entry);
+  }
+
   // Folds one event into per-entity usage aggregates.
-  accumulateUsage(bucket, event) {
+  accumulateUsage(bucket, event, currency = null) {
     if (event.isProbe || event.status < 200 || event.status >= 400) return;
     const window = dayWindow(event.ts);
+    const activeCurrency = currency ?? event.currency ?? this.defaultCurrency();
     const increments = [];
     if (event.modelId) increments.push(['model', event.modelId]);
     if (event.tokenId) increments.push(['token', event.tokenId]);
@@ -183,9 +245,11 @@ export class Telemetry {
       increments.push(['route', route.id]);
     }
     for (const [entity, entityId] of increments) {
-      const key = `${entity}:${entityId}:${window}`;
+      const key = `${entity}:${entityId}:${window}:${activeCurrency}`;
       const entry = bucket.get(key) || {
-        entity, entityId, window, requests: 0, tokensIn: 0, tokensOut: 0, cachedTokens: 0, cost: 0, savedCost: 0,
+        entity, entityId, window, currency: activeCurrency, requests: 0, tokensIn: 0, tokensOut: 0, cachedTokens: 0,
+        cost: 0, savedCost: 0, upstreamCost: 0, downstreamCost: 0,
+        fxRate: event.fxRate ?? null,
       };
       entry.requests += 1;
       entry.tokensIn += event.inputTokens ?? 0;
@@ -193,6 +257,9 @@ export class Telemetry {
       entry.cachedTokens += event.cachedTokens ?? 0;
       entry.cost += event.estCost ?? 0;
       entry.savedCost += event.savedCost ?? 0;
+      entry.upstreamCost += event.upstreamCost ?? 0;
+      entry.downstreamCost += event.downstreamCost ?? 0;
+      entry.fxRate = event.fxRate ?? entry.fxRate;
       bucket.set(key, entry);
     }
   }

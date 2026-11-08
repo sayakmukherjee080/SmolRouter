@@ -4,15 +4,40 @@ import { requireProvider } from './providers.js';
 
 const BALANCE_STRATEGIES = new Set(['round_robin', 'least_used', 'cache_aware']);
 
+// Returns the active billing currency for newly stored downstream prices.
+function billingCurrency(registry) {
+  return String(registry.setting('billing_currency', registry.config.billingCurrency)).toUpperCase();
+}
+
 // Creates a model and registers it in memory.
-export function createModel(registry, { name, balanceStrategy = 'round_robin', cacheEnabled = true }) {
+export function createModel(registry, {
+  name, balanceStrategy = 'round_robin', cacheEnabled = true,
+  downstreamInputCostPerM = null, downstreamOutputCostPerM = null, downstreamCachedInputCostPerM = null,
+  downstreamCurrency = null,
+}) {
   const modelName = requireName(name, 'name');
   if (!BALANCE_STRATEGIES.has(balanceStrategy)) throw new ValidationError('invalid balance strategy');
+  const downstreamInput = optionalCost(downstreamInputCostPerM, 'downstream_input_cost_per_m');
+  const downstreamOutput = optionalCost(downstreamOutputCostPerM, 'downstream_output_cost_per_m');
+  const downstreamCached = optionalCost(downstreamCachedInputCostPerM, 'downstream_cached_input_cost_per_m');
+  const currentCurrency = billingCurrency(registry);
+  if (downstreamCurrency !== null && downstreamCurrency !== undefined
+    && String(downstreamCurrency).toUpperCase() !== currentCurrency) {
+    throw new ValidationError(`downstream currency ${downstreamCurrency} does not match billing currency ${currentCurrency}`);
+  }
   try {
     const info = registry.db.prepare(
-      'INSERT INTO models (name, balance_strategy, cache_enabled, created_at) VALUES (?, ?, ?, ?)',
-    ).run(modelName, balanceStrategy, cacheEnabled ? 1 : 0, Date.now());
-    const model = { id: Number(info.lastInsertRowid), name: modelName, balanceStrategy, cacheEnabled: Boolean(cacheEnabled) };
+      `INSERT INTO models
+        (name, balance_strategy, cache_enabled, downstream_input_cost_per_m, downstream_output_cost_per_m,
+         downstream_cached_input_cost_per_m, downstream_currency, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(modelName, balanceStrategy, cacheEnabled ? 1 : 0, downstreamInput, downstreamOutput, downstreamCached,
+      currentCurrency, Date.now());
+    const model = {
+      id: Number(info.lastInsertRowid), name: modelName, balanceStrategy, cacheEnabled: Boolean(cacheEnabled),
+      downstreamInputCostPerM: downstreamInput, downstreamOutputCostPerM: downstreamOutput,
+      downstreamCachedInputCostPerM: downstreamCached, downstreamCurrency: currentCurrency,
+    };
     registry.modelsByName.set(model.name, model);
     registry.modelsById.set(model.id, model);
     registry.routesByModel.set(model.id, []);
@@ -29,10 +54,24 @@ export function updateModel(registry, id, patch) {
   const name = patch.name === undefined ? model.name : requireName(patch.name, 'name');
   const balanceStrategy = patch.balanceStrategy === undefined ? model.balanceStrategy : patch.balanceStrategy;
   const cacheEnabled = patch.cacheEnabled === undefined ? model.cacheEnabled : Boolean(patch.cacheEnabled);
+  const downstreamInput = patch.downstreamInputCostPerM === undefined
+    ? model.downstreamInputCostPerM : optionalCost(patch.downstreamInputCostPerM, 'downstream_input_cost_per_m');
+  const downstreamOutput = patch.downstreamOutputCostPerM === undefined
+    ? model.downstreamOutputCostPerM : optionalCost(patch.downstreamOutputCostPerM, 'downstream_output_cost_per_m');
+  const downstreamCached = patch.downstreamCachedInputCostPerM === undefined
+    ? model.downstreamCachedInputCostPerM : optionalCost(patch.downstreamCachedInputCostPerM, 'downstream_cached_input_cost_per_m');
+  const pricesTouched = patch.downstreamInputCostPerM !== undefined
+    || patch.downstreamOutputCostPerM !== undefined
+    || patch.downstreamCachedInputCostPerM !== undefined;
+  const downstreamCurrency = pricesTouched ? billingCurrency(registry) : model.downstreamCurrency;
   if (!BALANCE_STRATEGIES.has(balanceStrategy)) throw new ValidationError('invalid balance strategy');
   try {
-    registry.db.prepare('UPDATE models SET name = ?, balance_strategy = ?, cache_enabled = ? WHERE id = ?')
-      .run(name, balanceStrategy, cacheEnabled ? 1 : 0, id);
+    registry.db.prepare(`UPDATE models SET name = ?, balance_strategy = ?, cache_enabled = ?,
+      downstream_input_cost_per_m = ?, downstream_output_cost_per_m = ?, downstream_cached_input_cost_per_m = ?,
+      downstream_currency = ?
+      WHERE id = ?`)
+      .run(name, balanceStrategy, cacheEnabled ? 1 : 0, downstreamInput, downstreamOutput, downstreamCached,
+        downstreamCurrency, id);
   } catch (error) {
     if (String(error.message).includes('UNIQUE')) throw new ValidationError('model name already exists');
     throw error;
@@ -41,6 +80,10 @@ export function updateModel(registry, id, patch) {
   model.name = name;
   model.balanceStrategy = balanceStrategy;
   model.cacheEnabled = cacheEnabled;
+  model.downstreamInputCostPerM = downstreamInput;
+  model.downstreamOutputCostPerM = downstreamOutput;
+  model.downstreamCachedInputCostPerM = downstreamCached;
+  model.downstreamCurrency = downstreamCurrency;
   registry.modelsByName.set(name, model);
   return model;
 }

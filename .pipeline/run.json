@@ -1,0 +1,37 @@
+{
+  "version": 3,
+  "runID": "run-mvl8kwyc-7740bd",
+  "sessionID": "ses_e96385031ffedSg9CwWrsIP1MD",
+  "stage": "plan",
+  "status": "paused",
+  "approvals": {},
+  "models": {
+    "looper": {
+      "providerID": "opencode-go",
+      "id": "deepseek-v4.1-flash",
+      "variant": "max"
+    },
+    "planner": {
+      "providerID": "opencode-go",
+      "id": "deepseek-v4.1-flash",
+      "variant": "max"
+    },
+    "coder": {
+      "providerID": "opencode-go",
+      "id": "deepseek-v4.1-flash",
+      "variant": "max"
+    },
+    "verifier": {
+      "providerID": "opencode-go",
+      "id": "deepseek-v4.1-flash",
+      "variant": "max"
+    }
+  },
+  "todoState": {},
+  "planGateRejections": 0,
+  "todoGateRejections": 0,
+  "turns": 1,
+  "startedAt": "2026-10-23T17:21:04.980Z",
+  "updatedAt": "2026-10-24T16:20:01.704Z",
+  "pauseReason": "Planner did not write a usable plan.md at /home/ubuntu/openchamber/codebase/SmolOrchestrator/.pipeline/runs/run-mvl8kwyc-7740bd/plan.md."
+}

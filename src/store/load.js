@@ -1,7 +1,8 @@
 // In-memory routing registry: authoritative hot-path state, kept in sync with SQLite.
 import { decryptSecret } from '../util/crypto.js';
-import { dayWindow, monthWindow } from './windows.js';
+import { dayWindow } from './windows.js';
 import { ValidationError } from './validate.js';
+import { BudgetEngine } from './budgets.js';
 import * as modelStore from './models.js';
 import * as providerStore from './providers.js';
 import * as tokenStore from './tokens.js';
@@ -23,9 +24,18 @@ export class Registry {
     this.tokenModelIds = new Map();
     this.settings = new Map();
     this.routeCounters = new Map();
-    this.tokenCounters = new Map();
     this.dirtyRoutes = new Map();
     this.rotationPointers = new Map();
+    this.activeRequests = 0;
+    this.currencyChange = false;
+    this.budgets = new BudgetEngine({
+      db,
+      logger,
+      defaults: {
+        currency: () => String(this.setting('billing_currency', this.config.billingCurrency)).toUpperCase(),
+        retentionDays: () => this.setting('token_usage_retention_days', this.config.tokenUsageRetentionDays),
+      },
+    });
   }
 
   // Loads the full routing image from SQLite into memory.
@@ -41,7 +51,6 @@ export class Registry {
     this.tokenModelIds.clear();
     this.settings.clear();
     this.routeCounters.clear();
-    this.tokenCounters.clear();
 
     for (const row of this.db.prepare('SELECT * FROM models WHERE deleted_at IS NULL').all()) {
       const model = {
@@ -49,6 +58,10 @@ export class Registry {
         name: row.name,
         balanceStrategy: row.balance_strategy,
         cacheEnabled: Boolean(row.cache_enabled),
+        downstreamInputCostPerM: row.downstream_input_cost_per_m,
+        downstreamOutputCostPerM: row.downstream_output_cost_per_m,
+        downstreamCachedInputCostPerM: row.downstream_cached_input_cost_per_m,
+        downstreamCurrency: row.downstream_currency ?? 'USD',
       };
       this.modelsByName.set(model.name, model);
       this.modelsById.set(model.id, model);
@@ -114,6 +127,7 @@ export class Registry {
         keyHash: row.key_hash,
         label: row.label,
         enabled: Boolean(row.enabled),
+        timezone: row.timezone || 'UTC',
         createdAt: row.created_at,
         dailyRequestLimit: row.daily_request_limit,
         monthlyRequestLimit: row.monthly_request_limit,
@@ -135,11 +149,16 @@ export class Registry {
     }
     const window = dayWindow(Date.now());
     for (const row of this.db.prepare(
-      'SELECT entity_id, requests FROM usage WHERE entity = ? AND window_start = ?',
+      `SELECT entity_id, SUM(requests) AS requests FROM usage
+       WHERE entity = ? AND window_start = ? GROUP BY entity_id`,
     ).all('route', window)) {
       this.routeCounters.set(row.entity_id, { window, count: row.requests });
     }
-    this.loadTokenCounters(Date.now());
+    this.budgets.load();
+    const legacyReview = this.legacyAmountReview();
+    if (legacyReview.review) {
+      this.logger?.warn('legacy amount values need review', legacyReview);
+    }
     this.logger?.info('registry loaded', {
       models: this.modelsById.size,
       providers: this.providersById.size,
@@ -158,89 +177,95 @@ export class Registry {
     return Object.fromEntries(this.settings);
   }
 
-  // Rebuilds per-token budget counters from the current month's usage rows.
-  loadTokenCounters(now) {
-    const windowDay = dayWindow(now);
-    const windowMonth = monthWindow(now);
-    for (const row of this.db.prepare(
-      "SELECT entity_id, window_start, requests, cost FROM usage WHERE entity = 'token' AND window_start >= ?",
-    ).all(windowMonth)) {
-      let entry = this.tokenCounters.get(row.entity_id);
-      if (!entry) {
-        entry = { windowDay, windowMonth, dayRequests: 0, monthRequests: 0, daySpend: 0, monthSpend: 0 };
-        this.tokenCounters.set(row.entity_id, entry);
-      }
-      entry.monthRequests += row.requests;
-      entry.monthSpend += row.cost;
-      if (row.window_start === windowDay) {
-        entry.dayRequests += row.requests;
-        entry.daySpend += row.cost;
-      }
-    }
+  // Marks one gateway request as active for currency-change draining.
+  beginRequest() {
+    this.activeRequests += 1;
   }
 
-  // Returns a token's budget counters, rolling daily and monthly windows.
+  // Marks one gateway request as settled or abandoned.
+  endRequest() {
+    this.activeRequests = Math.max(0, this.activeRequests - 1);
+  }
+
+  // Stops new gateway admissions while a billing-currency change runs.
+  beginCurrencyChange() {
+    if (this.currencyChange) throw new ValidationError('billing currency change already in progress');
+    this.currencyChange = true;
+  }
+
+  // Re-opens gateway admissions after a currency change attempt.
+  endCurrencyChange() {
+    this.currencyChange = false;
+  }
+
+  // Returns legacy monetary data that predates the billing-currency feature.
+  legacyAmountReview() {
+    const currency = String(this.setting('billing_currency', this.config.billingCurrency)).toUpperCase();
+    if (currency === 'USD') return { currency, amountRules: 0, legacyCaps: 0, legacyEvents: 0, review: false };
+    const amountRules = this.db.prepare("SELECT COUNT(*) AS n FROM token_budget_rules WHERE metric = 'amount'").get().n;
+    const legacyCaps = this.db.prepare(`SELECT COUNT(*) AS n FROM tokens
+      WHERE daily_spend_limit IS NOT NULL OR monthly_spend_limit IS NOT NULL`).get().n;
+    const legacyEvents = this.db.prepare(`SELECT COUNT(*) AS n FROM token_usage_events
+      WHERE is_cache = 0 AND currency IS NULL AND downstream_cost > 0`).get().n;
+    return { currency, amountRules, legacyCaps, legacyEvents, review: legacyCaps > 0 || legacyEvents > 0 };
+  }
+
+  // Rebuilds per-token rule counters from persisted usage events.
+  loadTokenCounters() {
+    this.budgets.load();
+  }
+
+  // Returns legacy-style budget counters derived from the active rules.
   tokenBudget(tokenId, now = Date.now()) {
-    const windowDay = dayWindow(now);
-    const windowMonth = monthWindow(now);
-    let entry = this.tokenCounters.get(tokenId);
-    if (!entry || entry.windowMonth !== windowMonth) {
-      entry = { windowDay, windowMonth, dayRequests: 0, monthRequests: 0, daySpend: 0, monthSpend: 0 };
-    } else if (entry.windowDay !== windowDay) {
-      entry.windowDay = windowDay;
-      entry.dayRequests = 0;
-      entry.daySpend = 0;
-    }
-    this.tokenCounters.set(tokenId, entry);
-    return entry;
+    const token = this.findTokenById(tokenId);
+    if (!token) return { dayRequests: 0, monthRequests: 0, daySpend: 0, monthSpend: 0 };
+    return this.tokenBudgetReport(token, 1, now).usage;
   }
 
-  // Returns the first exhausted budget window for a token, or null.
+  // Returns the first exhausted rule reason for a token, or null.
   tokenBudgetExceeded(token, now = Date.now()) {
-    if (token.dailyRequestLimit === null && token.monthlyRequestLimit === null
-      && token.dailySpendLimit === null && token.monthlySpendLimit === null) {
-      return null;
-    }
-    const entry = this.tokenBudget(token.id, now);
-    if (token.dailyRequestLimit !== null && entry.dayRequests >= token.dailyRequestLimit) return 'daily_requests';
-    if (token.monthlyRequestLimit !== null && entry.monthRequests >= token.monthlyRequestLimit) return 'monthly_requests';
-    if (token.dailySpendLimit !== null && entry.daySpend >= token.dailySpendLimit) return 'daily_spend';
-    if (token.monthlySpendLimit !== null && entry.monthSpend >= token.monthlySpendLimit) return 'monthly_spend';
-    return null;
+    return this.budgets.exceeded(token, now);
   }
 
-  // Returns budget usage ratios, soft warnings, and remaining headroom for a token.
+  // Returns rule reports, soft warnings, and legacy-compatible counters.
   tokenBudgetReport(token, warnRatio, now = Date.now()) {
-    const entry = this.tokenBudget(token.id, now);
-    const usage = {
-      dayRequests: entry.dayRequests,
-      monthRequests: entry.monthRequests,
-      daySpend: entry.daySpend,
-      monthSpend: entry.monthSpend,
-    };
-    const warnings = [];
-    const remaining = {};
-    const checks = [
-      ['daily_requests', token.dailyRequestLimit, entry.dayRequests, 'daily_requests'],
-      ['monthly_requests', token.monthlyRequestLimit, entry.monthRequests, 'monthly_requests'],
-      ['daily_spend', token.dailySpendLimit, entry.daySpend, 'daily_spend'],
-      ['monthly_spend', token.monthlySpendLimit, entry.monthSpend, 'monthly_spend'],
-    ];
-    for (const [label, limit, used, key] of checks) {
-      if (limit === null) continue;
-      if (used >= limit * warnRatio && used < limit) warnings.push(label);
-      remaining[key] = key.endsWith('requests') ? Math.max(0, limit - used) : Math.max(0, Number((limit - used).toFixed(6)));
-    }
-    return { usage, warnings, remaining };
+    return this.budgets.report(token, warnRatio, now);
   }
 
-  // Counts one completed request and its estimated cost against a token's windows.
-  incrementTokenUsage(tokenId, cost, now = Date.now()) {
-    const entry = this.tokenBudget(tokenId, now);
-    entry.dayRequests += 1;
-    entry.monthRequests += 1;
-    entry.daySpend += cost;
-    entry.monthSpend += cost;
+  // Compatibility helper for tests: manually count one request and optional amount.
+  incrementTokenUsage(tokenId, cost = 0, now = Date.now()) {
+    const token = this.findTokenById(tokenId);
+    if (!token) return;
+    const rules = this.budgets.rulesForToken(tokenId);
+    const requestRule = rules.find((rule) => rule.metric === 'requests');
+    if (requestRule) this.budgets.counterFor(requestRule, now).counter.used += 1;
+    const amountRule = rules.find((rule) => rule.metric === 'amount');
+    if (amountRule) this.budgets.counterFor(amountRule, now).counter.used += Math.max(0, Number(cost) || 0);
+  }
+
+  // Reserves all token rules for one admitted request.
+  reserveTokenRules(token, estimates, now = Date.now()) {
+    return this.budgets.reserve(token, estimates, now);
+  }
+
+  // Releases unsettled token-rule reservations.
+  releaseTokenRules(handles) {
+    this.budgets.release(handles);
+  }
+
+  // Reconciles token-rule reservations to actual usage.
+  reconcileTokenRules(handles, actual, now = Date.now()) {
+    this.budgets.reconcile(handles, actual, now);
+  }
+
+  // Returns active budget rules for a token.
+  budgetRulesForToken(tokenId) {
+    return this.budgets.rulesForToken(tokenId);
+  }
+
+  // Replaces all budget rules for a token.
+  replaceTokenBudgetRules(tokenId, rules) {
+    return this.budgets.replaceRules(tokenId, rules);
   }
 
   // Looks up a gateway token by its SHA-256 hash.
@@ -299,11 +324,22 @@ export class Registry {
     }));
   }
 
-  // Lists all tokens with their scoped model ids.
+  // Lists all tokens with their scoped model ids and budget rules.
   listTokens() {
     return [...this.tokensByHash.values()].map((token) => ({
       ...token,
       modelIds: [...(this.tokenModelIds.get(token.id) || new Set())],
+      budgetRules: this.budgets.rulesForToken(token.id).map((rule) => ({
+        metric: rule.metric,
+        period: rule.period,
+        period_count: rule.period_count,
+        limit_value: rule.limit_value,
+        timezone: rule.timezone,
+        reset_time: rule.reset_time,
+        anchor: rule.anchor,
+        currency: rule.currency,
+        enabled: rule.enabled,
+      })),
     }));
   }
 
@@ -322,6 +358,22 @@ export class Registry {
   incrementRouteCount(routeId, now = Date.now()) {
     const count = this.routeCount(routeId, now);
     this.routeCounters.set(routeId, { window: dayWindow(now), count: count + 1 });
+  }
+
+  // Reserves one unit of a route's optional daily quota.
+  reserveRouteQuota(route, now = Date.now()) {
+    if (!route.dailyQuota || route.dailyQuota <= 0) return { routeId: route.id, window: dayWindow(now), reserved: false };
+    const count = this.routeCount(route.id, now);
+    if (count >= route.dailyQuota) return null;
+    this.incrementRouteCount(route.id, now);
+    return { routeId: route.id, window: dayWindow(now), reserved: true };
+  }
+
+  // Releases a route quota reservation after a failed attempt.
+  releaseRouteQuota(reservation) {
+    if (!reservation?.reserved) return;
+    const entry = this.routeCounters.get(reservation.routeId);
+    if (entry && entry.window === reservation.window) entry.count = Math.max(0, entry.count - 1);
   }
 
   // Marks a route's volatile state for asynchronous persistence.
@@ -386,6 +438,9 @@ export class Registry {
   setSetting(key, value) {
     const name = String(key ?? '').trim();
     if (!name) throw new ValidationError('setting key is required');
+    if (name === 'billing_currency') {
+      throw new ValidationError('billing_currency must be changed through the admin settings API');
+    }
     this.db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
       .run(name, JSON.stringify(value));
     this.settings.set(name, value);
@@ -409,7 +464,8 @@ export class Registry {
     if (windowStart !== null) { clauses.push('window_start = ?'); params.push(Number(windowStart)); }
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     return this.db.prepare(
-      `SELECT entity, entity_id, window_start, requests, tokens_in, tokens_out, cached_tokens, cost, saved_cost
+      `SELECT entity, entity_id, window_start, requests, tokens_in, tokens_out, cached_tokens, cost, saved_cost,
+              upstream_cost, downstream_cost, currency, fx_rate
        FROM usage ${where} ORDER BY window_start DESC, cost DESC LIMIT 1000`,
     ).all(...params);
   }

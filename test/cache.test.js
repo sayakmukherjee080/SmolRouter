@@ -1,6 +1,7 @@
 // Exact response cache and singleflight coalescing for temperature=0 requests.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { requestCacheKey } from '../src/gateway/cache.js';
 import { createTestApp, adminLogin } from './helpers/app.js';
 import { startStubUpstream, jsonCompletion } from './helpers/upstream.js';
 
@@ -44,6 +45,7 @@ test('response cache serves identical temperature=0 requests without upstream sp
   assert.equal(stats.hits, 1);
   assert.equal(stats.misses, 1);
   assert.ok(stats.saved_cost > 0, 'savings recorded');
+  assert.equal(app.app.registry.activeRequests, 0, 'cache hit released its active slot');
 });
 
 test('singleflight coalesces concurrent identical requests', async (t) => {
@@ -201,4 +203,76 @@ test('deeply nested payloads do not break cache keying', async (t) => {
   });
   assert.equal(response.status, 200);
   await response.text();
+});
+
+test('cache keys treat stream:false and absent stream identically', () => {
+  const base = { model: 'x', messages: [{ role: 'user', content: 'hi' }], temperature: 0 };
+  const key = requestCacheKey(1, base);
+  assert.equal(requestCacheKey(1, { ...base, stream: false }), key);
+  assert.equal(requestCacheKey(1, { ...base, stream_options: { include_usage: true } }), key);
+  assert.notEqual(requestCacheKey(1, { ...base, temperature: 0.1 }), key);
+});
+
+test('provider edits invalidate cached responses for affected models', async (t) => {
+  const first = await startStubUpstream((req, res) => jsonCompletion(res, { content: 'first' }));
+  const second = await startStubUpstream((req, res) => jsonCompletion(res, { content: 'second' }));
+  const app = await createTestApp();
+  const provider = app.addProvider('changing', first.baseUrl);
+  const model = app.app.registry.createModel({ name: 'changing' });
+  app.app.registry.createRoute({ modelId: model.id, providerId: provider.id, upstreamModel: 'u' });
+  const { raw } = app.addToken('client', [model.id]);
+  const session = await adminLogin(app.baseUrl);
+  await t.after(async () => {
+    await app.close();
+    await first.close();
+    await second.close();
+  });
+
+  const before = await complete(app.baseUrl, raw, { model: 'changing' });
+  assert.match(before.text, /first/);
+  assert.equal((await complete(app.baseUrl, raw, { model: 'changing' })).response.headers.get('x-cache'), 'hit');
+
+  const patched = await fetch(`${app.baseUrl}/api/v1/providers/${provider.id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', cookie: session.cookie, 'x-csrf-token': session.csrf },
+    body: JSON.stringify({ baseUrl: second.baseUrl }),
+  });
+  assert.equal(patched.status, 200);
+
+  const after = await complete(app.baseUrl, raw, { model: 'changing' });
+  assert.equal(after.response.headers.get('x-cache'), 'miss', 'provider update invalidated the cache');
+  assert.match(after.text, /second/);
+  assert.doesNotMatch(after.text, /first/);
+});
+
+test('non-stream responses above the capture cap skip cost headers and hot-apply the cap', async (t) => {
+  const body = JSON.stringify({
+    id: 'chatcmpl-large',
+    object: 'chat.completion',
+    choices: [{ index: 0, message: { role: 'assistant', content: 'z'.repeat(4096) } }],
+  });
+  const upstream = await startStubUpstream((req, res) => {
+    res.statusCode = 200;
+    res.setHeader('content-type', 'application/json');
+    res.setHeader('content-length', Buffer.byteLength(body));
+    res.end(body);
+  });
+  const app = await createTestApp({ env: { NONSTREAM_CAPTURE_MAX_BYTES: '1024' } });
+  const provider = app.addProvider('stub', upstream.baseUrl);
+  const model = app.app.registry.createModel({ name: 'large' });
+  app.app.registry.createRoute({ modelId: model.id, providerId: provider.id, upstreamModel: 'u' });
+  const { raw } = app.addToken('client', [model.id]);
+  await t.after(async () => {
+    await app.close();
+    await upstream.close();
+  });
+
+  const first = await complete(app.baseUrl, raw, { model: 'large', temperature: 0.7 });
+  assert.equal(first.response.headers.get('x-request-cost'), null);
+  assert.equal(first.response.headers.get('x-litellm-response-cost'), null);
+  assert.match(first.text, /z{100}/, 'body is streamed through unchanged');
+
+  app.app.registry.setSetting('nonstream_capture_max_bytes', 8192);
+  const second = await complete(app.baseUrl, raw, { model: 'large', temperature: 0.7 });
+  assert.ok(second.response.headers.get('x-request-cost'), 'raised cap enables cost headers without restart');
 });

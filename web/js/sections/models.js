@@ -13,9 +13,13 @@ function costLabel(route, direction) {
   return '<span class="muted">unknown</span>';
 }
 
-// Renders one model card with its route table.
-function modelCard(model, providerName) {
+// Renders one model card with its downstream prices and route table.
+function modelCard(model, providerName, currency) {
   const routes = model.routes ?? [];
+  const modelCurrency = model.downstreamCurrency ?? currency;
+  const downstream = model.downstreamInputCostPerM === null && model.downstreamOutputCostPerM === null
+    ? '<span class="muted">pass-through</span>'
+    : `${Number(model.downstreamInputCostPerM ?? 0).toFixed(4)} / ${Number(model.downstreamOutputCostPerM ?? 0).toFixed(4)} ${escapeHtml(modelCurrency)} per M`;
   const rows = routes.map((route) => `
     <tr>
       <td>${escapeHtml(providerName(route.providerId))}</td>
@@ -55,8 +59,10 @@ function modelCard(model, providerName) {
           <span class="muted small-label">Cache</span>
         </label>
         <button class="btn ghost small" data-action="route-add" data-model="${model.id}">Add route</button>
+        <button class="btn ghost small" data-action="pricing" data-model="${model.id}">Pricing</button>
         <button class="btn danger small" data-action="model-delete" data-model="${model.id}" data-label="${escapeHtml(model.name)}">Delete</button>
       </div>
+      <p class="muted small-label">Downstream: ${downstream}</p>
       ${routes.length ? `<div class="table-scroll"><table class="route-table">
         <thead><tr><th>Provider</th><th>Upstream model</th><th>Priority</th><th>Input</th><th>Output</th><th>Capabilities</th><th>Max ctx</th><th>Daily cap</th><th>Status</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
@@ -75,8 +81,14 @@ function modelModal(onDone) {
         <select name="balanceStrategy">
           <option value="round_robin">Round robin</option>
           <option value="least_used">Least used</option>
+          <option value="cache_aware">Cache aware</option>
         </select>
       </label>
+      <div class="form-grid">
+        <label class="field"><span>Downstream input / M (optional)</span><input name="downstreamInputCostPerM" type="number" min="0" step="0.0001" placeholder="pass-through"></label>
+        <label class="field"><span>Downstream output / M (optional)</span><input name="downstreamOutputCostPerM" type="number" min="0" step="0.0001" placeholder="pass-through"></label>
+        <label class="field"><span>Downstream cached input / M (optional)</span><input name="downstreamCachedInputCostPerM" type="number" min="0" step="0.0001" placeholder="input price"></label>
+      </div>
       <p class="form-error hidden" data-error></p>
       <div class="form-actions">
         <button type="button" class="btn ghost" data-close>Cancel</button>
@@ -88,9 +100,13 @@ function modelModal(onDone) {
     event.preventDefault();
     const form = event.target;
     try {
+      const optional = (value) => (value === '' ? null : Number(value));
       await api('/models', { method: 'POST', body: {
         name: form.name.value,
         balanceStrategy: form.balanceStrategy.value,
+        downstreamInputCostPerM: optional(form.downstreamInputCostPerM.value),
+        downstreamOutputCostPerM: optional(form.downstreamOutputCostPerM.value),
+        downstreamCachedInputCostPerM: optional(form.downstreamCachedInputCostPerM.value),
       } });
       modal.close();
       toast('Model created', 'success');
@@ -194,9 +210,50 @@ async function routeModal(model, providers, onDone, existing = null) {
   });
 }
 
+// Opens the downstream pricing dialog for a model.
+function pricingModal(model, currency, onDone) {
+  const modelCurrency = model.downstreamCurrency ?? currency;
+  const modal = openModal(`
+    <h3>Downstream pricing: ${escapeHtml(model.name)}</h3>
+    <p class="modal-sub">Optional client-facing prices in ${escapeHtml(modelCurrency)} per million tokens. Blank means pass-through to upstream cost.</p>
+    <form id="pricing-form" class="stack">
+      <div class="form-grid">
+        <label class="field"><span>Input / M</span><input name="downstreamInputCostPerM" type="number" min="0" step="0.0001" value="${model.downstreamInputCostPerM ?? ''}" placeholder="pass-through"></label>
+        <label class="field"><span>Output / M</span><input name="downstreamOutputCostPerM" type="number" min="0" step="0.0001" value="${model.downstreamOutputCostPerM ?? ''}" placeholder="pass-through"></label>
+        <label class="field"><span>Cached input / M</span><input name="downstreamCachedInputCostPerM" type="number" min="0" step="0.0001" value="${model.downstreamCachedInputCostPerM ?? ''}" placeholder="input price"></label>
+      </div>
+      <p class="form-error hidden" data-error></p>
+      <div class="form-actions">
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button class="btn primary" type="submit">Save pricing</button>
+      </div>
+    </form>`);
+  const form = modal.root.querySelector('form');
+  modal.root.querySelector('[data-close]').addEventListener('click', modal.close);
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const optional = (value) => (value === '' ? null : Number(value));
+    try {
+      await api(`/models/${model.id}`, { method: 'PATCH', body: {
+        downstreamInputCostPerM: optional(form.downstreamInputCostPerM.value),
+        downstreamOutputCostPerM: optional(form.downstreamOutputCostPerM.value),
+        downstreamCachedInputCostPerM: optional(form.downstreamCachedInputCostPerM.value),
+      } });
+      modal.close();
+      toast('Pricing updated', 'success');
+      onDone();
+    } catch (error) {
+      const box = form.querySelector('[data-error]');
+      box.textContent = error.message;
+      box.classList.remove('hidden');
+    }
+  });
+}
+
 // Renders the models section and wires its interactions.
 export async function render(main, signal) {
-  const [{ models }, { providers }] = await Promise.all([api('/models'), api('/providers')]);
+  const [{ models }, { providers }, { settings }] = await Promise.all([api('/models'), api('/providers'), api('/settings')]);
+  const currency = settings.billing_currency ?? 'USD';
   const providerName = (id) => providers.find((provider) => provider.id === id)?.name ?? `#${id}`;
   main.innerHTML = `
     <div class="page-head section-enter">
@@ -208,7 +265,7 @@ export async function render(main, signal) {
     </div>
     <div class="model-grid">
       ${models.length
-        ? models.map((model) => modelCard(model, providerName)).join('')
+        ? models.map((model) => modelCard(model, providerName, currency)).join('')
         : emptyState('No models yet', 'Create an alias, then add provider routes to it.')}
     </div>`;
 
@@ -258,6 +315,10 @@ export async function render(main, signal) {
       } catch (error) {
         toast(error.message, 'error');
       }
+      return;
+    }
+    if (action === 'pricing') {
+      if (model) pricingModal(model, currency, rerender);
       return;
     }
     if (action === 'route-add') {

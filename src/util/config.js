@@ -78,11 +78,18 @@ export function loadConfig(env = process.env) {
     responseCacheMaxEntries: readNumber(env, 'RESPONSE_CACHE_MAX_ENTRIES', 500, { min: 1 }),
     responseCacheMaxBodyBytes: readNumber(env, 'RESPONSE_CACHE_MAX_BODY_BYTES', 1048576, { min: 1024 }),
     responseCacheMaxTotalBytes: readNumber(env, 'RESPONSE_CACHE_MAX_TOTAL_BYTES', 67108864, { min: 1024 }),
+    nonstreamCaptureMaxBytes: readNumber(env, 'NONSTREAM_CAPTURE_MAX_BYTES', 262144, { min: 1024 }),
     keyRetriesPerRoute: readNumber(env, 'KEY_RETRIES_PER_ROUTE', 2, { min: 1 }),
     maintenanceEnabled: readBoolean(env, 'MAINTENANCE_ENABLED', true),
     maintenanceIntervalMs: readNumber(env, 'MAINTENANCE_INTERVAL_MS', 86400000, { min: 3600000 }),
     telemetryRetentionDays: readNumber(env, 'TELEMETRY_RETENTION_DAYS', 30, { min: 0 }),
     usageRetentionDays: readNumber(env, 'USAGE_RETENTION_DAYS', 90, { min: 0 }),
+    tokenUsageRetentionDays: readNumber(env, 'TOKEN_USAGE_RETENTION_DAYS', 400, { min: 0 }),
+    billingCurrency: String(env.BILLING_CURRENCY || 'USD').toUpperCase(),
+    fxApiUrl: env.FX_API_URL || 'https://api.frankfurter.app/latest',
+    fxApiKey: env.FX_API_KEY || '',
+    fxCacheTtlMs: readNumber(env, 'FX_CACHE_TTL_MS', 3600000, { min: 60000 }),
+    fxMaxStaleMs: readNumber(env, 'FX_MAX_STALE_MS', 86400000, { min: 60000 }),
     cachedInputDiscount: readNumber(env, 'CACHED_INPUT_DISCOUNT', 0.1, { min: 0, max: 1 }),
     budgetWarnRatio: readNumber(env, 'BUDGET_WARN_RATIO', 0.8, { min: 0.1, max: 0.99 }),
     backupEnabled: readBoolean(env, 'BACKUP_ENABLED', true),
@@ -97,7 +104,11 @@ export function loadConfig(env = process.env) {
     logKeep: readNumber(env, 'LOG_KEEP', 5, { min: 1 }),
     logLevel: env.LOG_LEVEL || 'info',
     shutdownDrainMs: readNumber(env, 'SHUTDOWN_DRAIN_MS', 30000, { min: 1000 }),
+    currencyChangeDrainMs: readNumber(env, 'CURRENCY_CHANGE_DRAIN_MS', 30000, { min: 1000 }),
   };
+  if (!/^[A-Z]{3}$/.test(config.billingCurrency)) {
+    throw new Error(`Invalid BILLING_CURRENCY=${config.billingCurrency}; expected a 3-letter ISO code`);
+  }
   if (!config.appSecret) {
     throw new Error('APP_SECRET missing. Run `npm run setup` to initialize the instance.');
   }

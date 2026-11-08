@@ -1,0 +1,2178 @@
+{
+  "meta": {
+    "report_title": "SmolOrchestrator \u2014 Engineering & Implementation Audit",
+    "generated": "2026-10-21",
+    "cutoff": {
+      "datestamp": "2026-10-06",
+      "timezone": "UTC",
+      "exact_commit": "3b09518844a25203eb73376bc9db52c8bd3755a5",
+      "commit_short": "3b09518",
+      "commit_time_utc": "2026-10-06T22:03:38Z",
+      "commit_time_local": "2026-10-07T03:33:38+05:30",
+      "branch": "main",
+      "reason": "No cutoff supplied. Latest commit on the default branch used; all history through that commit is in scope."
+    },
+    "defaults_used": [
+      "Cutoff = latest commit on main (2026-10-06 UTC).",
+      "Coders = the identity supplied by the user (sayakmukherjee080@gmail.com), mapped to both git author identities found in the log.",
+      "Architect = inferred from git evidence and repository planning artifacts; labelled [Inferred].",
+      "Planning artifacts = repository only; no external tickets, wiki, design documents or chat decisions were supplied.",
+      "Default branch analyzed; no other branches exist; unmerged work is not included.",
+      "Vendored, minified, generated and binary assets excluded from size and complexity metrics; legacy PHP excluded from current-scope metrics."
+    ],
+    "branches": {
+      "local": [
+        "main"
+      ],
+      "remote": [
+        "origin/main"
+      ],
+      "tags": [],
+      "merges": 0,
+      "unmerged_work_included": false
+    },
+    "working_tree": "Two uncommitted files after the cutoff (coder_memory.md and test/maintenance.test.js) are excluded. The cutoff tree was extracted with git archive.",
+    "tools": [
+      {
+        "name": "cloc",
+        "version": "1.98",
+        "use": "physical SLOC by language and file"
+      },
+      {
+        "name": "lizard",
+        "version": "1.24.1",
+        "use": "cyclomatic complexity and function length"
+      },
+      {
+        "name": "jscpd",
+        "version": "4.0.5",
+        "use": "token-based duplication"
+      },
+      {
+        "name": "node --test --experimental-test-coverage",
+        "version": "24.21.0",
+        "use": "test execution and line/branch/function coverage"
+      },
+      {
+        "name": "npm audit",
+        "version": "11.19.0",
+        "use": "dependency vulnerability check"
+      },
+      {
+        "name": "git",
+        "version": "2.43",
+        "use": "history, authorship, churn and session reconstruction"
+      }
+    ],
+    "conventions": {
+      "person_month_hours": 152,
+      "focused_hours_per_week": 30,
+      "size_basis": "Production and infrastructure executable SLOC: JavaScript + SQL. Excludes tests, docs, CSS, HTML, JSON data, vendored code, generated files and legacy PHP.",
+      "hours_convention": "Focused person-hours for an experienced developer (5+ years) who knows the stack.",
+      "evidence_tags": {
+        "M": "Measured directly from the repository or a tool run",
+        "D": "Derived from measured inputs by a stated formula",
+        "E": "Estimated by judgment"
+      }
+    }
+  },
+  "inputs": {
+    "coders": [
+      {
+        "name": "Sayak Mukherjee",
+        "identities": [
+          "Sayak Mukherjee <sayakmukherjee080@gmail.com>",
+          "Sayak Mukherjee <50053780+sayakmukherjee080@users.noreply.github.com>"
+        ],
+        "commits": 10,
+        "mapping": "Both identities map to one coder; no other authors found."
+      }
+    ],
+    "unmapped": [],
+    "automated": [],
+    "architect": {
+      "name": "Sayak Mukherjee",
+      "label": "[Inferred]",
+      "confidence": "Medium",
+      "decisions_owned": [
+        "Runtime pivot from PHP to a zero-dependency Node.js process",
+        "Layer and module layout (util, store, gateway, admin, web)",
+        "OpenAI-compatible proxy and transparent streaming design",
+        "Routing, key-pool, failover, probe and cache architecture",
+        "Telemetry, metrics and operational model"
+      ],
+      "sources": [
+        "README.md architecture, feature and operations sections",
+        "coder_memory.md: 19 architecture/style/security decisions at cutoff",
+        "postman/smolorchestrator.postman_collection.json: 41 requests",
+        "migrations/001-004: schema and evolution",
+        "Commit messages and early scaffold commit e62f824"
+      ],
+      "external_planning": "None supplied. Score confidence capped at Medium by the audit rules."
+    },
+    "cutoff_answer": "No cutoff. Start to finish, through the latest commit."
+  },
+  "measurements": {
+    "cloc": [
+      {
+        "category": "Production JavaScript",
+        "files": 47,
+        "code": 5279,
+        "blank": 461,
+        "comment": 297
+      },
+      {
+        "category": "Production SQL",
+        "files": 4,
+        "code": 146,
+        "blank": 21,
+        "comment": 5
+      },
+      {
+        "category": "Production CSS/HTML",
+        "files": 2,
+        "code": 447,
+        "blank": 41,
+        "comment": 11
+      },
+      {
+        "category": "Production JSON data",
+        "files": 1,
+        "code": 30,
+        "blank": 0,
+        "comment": 0
+      },
+      {
+        "category": "Tests",
+        "files": 26,
+        "code": 2154,
+        "blank": 230,
+        "comment": 50
+      },
+      {
+        "category": "Documentation (Markdown)",
+        "files": 3,
+        "code": 186,
+        "blank": 74,
+        "comment": 0
+      },
+      {
+        "category": "Postman collection",
+        "files": 1,
+        "code": 544,
+        "blank": 0,
+        "comment": 0
+      },
+      {
+        "category": "Legacy PHP tree",
+        "files": 62,
+        "code": 4535,
+        "blank": 724,
+        "comment": 414
+      },
+      {
+        "category": "License",
+        "files": 1,
+        "code": 661,
+        "blank": 0,
+        "comment": 0
+      }
+    ],
+    "cloc_totals": {
+      "files": 147,
+      "code": 13982,
+      "blank": 1551,
+      "comment": 777,
+      "note": "Includes license, docs, tests and legacy; production model input is 5,425 JS+SQL."
+    },
+    "sloc": {
+      "production_js": {
+        "code": 5279,
+        "files": 47
+      },
+      "config_infra_js": {
+        "code": 663,
+        "files": 6,
+        "note": "setup.js, src/server.js, src/util/config.js, log.js, body.js, headers.js"
+      },
+      "application_js": {
+        "code": 4616,
+        "files": 41
+      },
+      "production_sql": {
+        "code": 146,
+        "files": 4
+      },
+      "production_css_html": {
+        "code": 447,
+        "files": 2
+      },
+      "production_json_data": {
+        "code": 30,
+        "files": 1
+      },
+      "production_total": {
+        "code": 5902,
+        "files": 54
+      },
+      "executable_js_sql": {
+        "code": 5425
+      },
+      "tests": {
+        "code": 2154,
+        "files": 26
+      },
+      "docs_markdown": {
+        "code": 186,
+        "files": 3
+      },
+      "postman": {
+        "code": 544,
+        "files": 1
+      },
+      "legacy": {
+        "code": 4535,
+        "files": 62
+      },
+      "license": {
+        "code": 661,
+        "files": 1
+      },
+      "logical_sloc": "Not available from a reliable JavaScript logical-SLOC tool in this environment; cloc physical code lines are used. lizard NLOC (6,560 across src/web/test/setup) is non-blank, non-comment physical lines, not logical statements."
+    },
+    "files": {
+      "tracked_total": 152,
+      "non_legacy": 90,
+      "production": 54,
+      "tests": 26,
+      "docs": 4,
+      "legacy": 62,
+      "src_js": 36,
+      "src_json": 1,
+      "web_js": 10,
+      "web_css": 1,
+      "web_html": 1,
+      "migrations": 4
+    },
+    "tests": {
+      "count": 95,
+      "pass": 95,
+      "fail": 0,
+      "duration_s": 14.77,
+      "line_pct": 82.92,
+      "branch_pct": 78.08,
+      "funcs_pct": 81.41,
+      "test_to_code_pct": 36.5,
+      "framework": "node:test (built-in)",
+      "coverage_tool": "node --test --experimental-test-coverage",
+      "by_area": {
+        "src": 82.92,
+        "setup.js": 50.93,
+        "src/admin/api.js": 76.19,
+        "src/admin/session.js": 90.55,
+        "src/server.js": 58.87,
+        "src/store/load.js": 75.78,
+        "src/store/providers.js": 66.67,
+        "src/gateway/forward.js": 94.0,
+        "src/gateway/telemetry.js": 93.97,
+        "web": 0.0
+      }
+    },
+    "complexity": {
+      "functions": 689,
+      "avg_ccn": 2.55,
+      "median_ccn": 1,
+      "max_ccn": 49,
+      "ccn_gt_5": 66,
+      "ccn_gt_10": 28,
+      "ccn_gt_15": 18,
+      "ccn_gt_20": 7,
+      "ccn_gt_30": 3,
+      "avg_function_length": 11.7,
+      "max_function_length": 412,
+      "functions_gt_100_lines": 7,
+      "cognitive_complexity": "Not measured; lizard cyclomatic complexity used.",
+      "max_file_lines": 533,
+      "top_functions": [
+        {
+          "function": "Telemetry.flushInternal",
+          "file": "src/gateway/telemetry.js",
+          "ccn": 49,
+          "nloc": 54
+        },
+        {
+          "function": "admin.handle",
+          "file": "src/admin/api.js",
+          "ccn": 37,
+          "nloc": 90
+        },
+        {
+          "function": "gateway.handleProxy",
+          "file": "src/gateway/forward.js",
+          "ccn": 34,
+          "nloc": 105
+        },
+        {
+          "function": "gateway.runProbe",
+          "file": "src/gateway/forward.js",
+          "ccn": 29,
+          "nloc": 64
+        },
+        {
+          "function": "configBundle.validateBundle",
+          "file": "src/store/configBundle.js",
+          "ccn": 23,
+          "nloc": 27
+        },
+        {
+          "function": "gateway.attemptLoop",
+          "file": "src/gateway/forward.js",
+          "ccn": 21,
+          "nloc": 71
+        },
+        {
+          "function": "router.handle",
+          "file": "src/router.js",
+          "ccn": 21,
+          "nloc": 46
+        }
+      ]
+    },
+    "duplication": {
+      "percentage_lines": 1.61,
+      "percentage_tokens": 1.74,
+      "clones": 12,
+      "duplicated_lines": 143,
+      "duplicated_tokens": 1968,
+      "sources": 75,
+      "note": "Most clones are in tests and CSS; production duplication is low."
+    },
+    "security_scan": {
+      "hardcoded_secret_hits": 0,
+      "npm_audit_vulns": 0,
+      "note": "Regex scan for common API-key and private-key patterns in tracked files found no live secrets; .env is untracked. History was not exhaustively entropy-scanned."
+    },
+    "dependencies": {
+      "runtime": 0,
+      "dev": 0,
+      "lockfile_packages": 0,
+      "audit_vulnerabilities": 0,
+      "note": "package.json has no dependencies and package-lock.json contains only the root package."
+    },
+    "schema": {
+      "engine": "SQLite via node:sqlite",
+      "tables": 12,
+      "indexes": 11,
+      "note": "12 application tables plus schema_migrations; 11 explicit indexes.",
+      "migrations": 4,
+      "foreign_keys": true,
+      "wal": true,
+      "soft_delete": true,
+      "tables_list": [
+        "models",
+        "providers",
+        "provider_keys",
+        "routes",
+        "tokens",
+        "token_models",
+        "telemetry",
+        "usage",
+        "settings",
+        "admin",
+        "audit",
+        "cache_stats"
+      ]
+    },
+    "api": {
+      "documented_requests": 41,
+      "gateway_requests": 7,
+      "admin_requests": 34,
+      "style": "OpenAI-compatible gateway plus /api/v1 admin JSON",
+      "versioning": "Admin API is path-versioned at /api/v1; gateway is /v1."
+    },
+    "legacy": {
+      "files": 62,
+      "code": 4535,
+      "php": 3989,
+      "note": "PHP v1 and deprecated copies retained under legacy/. Excluded from current-scope size, complexity and effort."
+    },
+    "git": {
+      "commits": 10,
+      "merges": 0,
+      "tags": 0,
+      "authors": 1,
+      "insertions": 20850,
+      "deletions": 700,
+      "active_days": 5,
+      "first_commit": "2026-01-02T06:29:54+05:30",
+      "last_commit": "2026-10-07T03:33:38+05:30"
+    }
+  },
+  "modules": [
+    {
+      "id": "M1",
+      "name": "Bootstrap, HTTP adapter and config",
+      "purpose": "Process composition, native HTTP adapter, routing, security headers, request IDs, config loading, logging, body limits.",
+      "surface_db": "Backend \u00b7 no DB",
+      "external": "Node stdlib only",
+      "components": "src/server.js, src/router.js, src/util/config.js, src/util/log.js, src/util/body.js, src/util/headers.js",
+      "sloc": 527,
+      "files": 6,
+      "complexity": "Moderate",
+      "coupling": "Low",
+      "debt": "Hand-rolled adapter; server main path 59% covered; no tracing.",
+      "tests": "59% line (server), 81% config, 91% headers",
+      "complete": "100%"
+    },
+    {
+      "id": "M2",
+      "name": "Crypto and admin sessions",
+      "purpose": "scrypt password storage, AES-256-GCM provider-key encryption, HMAC-signed sessions, CSRF, login lockout.",
+      "surface_db": "Backend \u00b7 admin table",
+      "external": "None",
+      "components": "src/util/crypto.js, src/admin/session.js",
+      "sloc": 177,
+      "files": 2,
+      "complexity": "Complex",
+      "coupling": "Low",
+      "debt": "No application-secret rotation path; lockout state is in-memory.",
+      "tests": "89% crypto, 91% session",
+      "complete": "100%"
+    },
+    {
+      "id": "M3",
+      "name": "Database and registry",
+      "purpose": "SQLite connection, migration runner, authoritative in-memory routing image, soft-delete filtering, settings and counters.",
+      "surface_db": "Backend \u00b7 all tables",
+      "external": "None",
+      "components": "src/store/db.js, src/store/load.js, migrations/001-004",
+      "sloc": 574,
+      "files": 6,
+      "complexity": "Complex",
+      "coupling": "High",
+      "debt": "No down migrations; checksum mismatch only warns; registry is a broad facade.",
+      "tests": "92% db, 76% load",
+      "complete": "100%"
+    },
+    {
+      "id": "M4",
+      "name": "Domain stores",
+      "purpose": "Model, route, provider, key and token mutations with validation and in-memory consistency.",
+      "surface_db": "Backend \u00b7 models/providers/tokens",
+      "external": "None",
+      "components": "src/store/models.js, providers.js, tokens.js, validate.js, windows.js",
+      "sloc": 424,
+      "files": 5,
+      "complexity": "Moderate",
+      "coupling": "High",
+      "debt": "Some multi-write paths are not transactional; name reuse relies on tombstones.",
+      "tests": "67-84% by file",
+      "complete": "100%"
+    },
+    {
+      "id": "M5",
+      "name": "Gateway proxy core",
+      "purpose": "Authentication, scoping, rate limiting, route selection, key pools, failover, cooldown, cache-aware pins, capability checks, streaming passthrough.",
+      "surface_db": "Backend \u00b7 no direct DB",
+      "external": "Upstream provider fetch",
+      "components": "src/gateway/forward.js, auth.js, balance.js, pools.js, cooldown.js, pins.js, requirements.js, quotas.js, ratelimit.js",
+      "sloc": 708,
+      "files": 9,
+      "complexity": "Very Complex",
+      "coupling": "High",
+      "debt": "forward.js is 485 lines with a CCN-34 handler; budget check-then-act can overshoot under concurrency.",
+      "tests": "84-100% by file; 94% forward",
+      "complete": "100%"
+    },
+    {
+      "id": "M6",
+      "name": "Cache, pricing and usage extraction",
+      "purpose": "Exact response cache, LRU and byte caps, singleflight, reference pricing, SSE/JSON usage extraction.",
+      "surface_db": "Backend \u00b7 no DB",
+      "external": "Static price map",
+      "components": "src/gateway/cache.js, pricing.js, usage.js, models.js, model_prices.json",
+      "sloc": 233,
+      "files": 5,
+      "complexity": "Complex",
+      "coupling": "Medium",
+      "debt": "Cache invalidation is per model, not per provider change; price map is static best-effort.",
+      "tests": "92-100% by file",
+      "complete": "100%"
+    },
+    {
+      "id": "M7",
+      "name": "Telemetry, metrics and probes",
+      "purpose": "Batched telemetry/audit/usage writes, Prometheus rendering, recovery and health probes.",
+      "surface_db": "Backend \u00b7 telemetry/usage/audit",
+      "external": "Upstream probe fetch",
+      "components": "src/gateway/telemetry.js, metrics.js, probe.js",
+      "sloc": 424,
+      "files": 3,
+      "complexity": "Complex",
+      "coupling": "Medium",
+      "debt": "flushInternal has CCN 49; in-memory counters reset on restart; no tracing.",
+      "tests": "90-100% by file",
+      "complete": "100%"
+    },
+    {
+      "id": "M8",
+      "name": "Admin API and static server",
+      "purpose": "Session login, CSRF enforcement, CRUD for all entities, settings, usage, telemetry, backups, config transfer, static UI serving.",
+      "surface_db": "Backend + static \u00b7 all tables via registry",
+      "external": "Upstream model list fetch",
+      "components": "src/admin/api.js, src/admin/static.js",
+      "sloc": 504,
+      "files": 2,
+      "complexity": "Complex",
+      "coupling": "High",
+      "debt": "470-line handler with CCN 37; single admin, no RBAC; token list exposes key hashes.",
+      "tests": "76% api, 62% static",
+      "complete": "100%"
+    },
+    {
+      "id": "M9",
+      "name": "Operations",
+      "purpose": "Scheduled SQLite backups, retention maintenance, config export/import.",
+      "surface_db": "Backend/ops \u00b7 SQLite files",
+      "external": "Filesystem",
+      "components": "src/store/backup.js, maintenance.js, configBundle.js",
+      "sloc": 260,
+      "files": 3,
+      "complexity": "Moderate",
+      "coupling": "Medium",
+      "debt": "Restore is manual and unverified; config import is not transactional.",
+      "tests": "74-86% by file",
+      "complete": "100%"
+    },
+    {
+      "id": "M10",
+      "name": "Admin dashboard",
+      "purpose": "Vanilla ES-module SPA: login shell, models, providers, tokens, usage, logs, settings, theme, modals.",
+      "surface_db": "Frontend \u00b7 no DB",
+      "external": "None",
+      "components": "web/index.html, web/styles.css, web/js/app.js, api.js, ui.js, theme.js, sections/*",
+      "sloc": 1886,
+      "files": 12,
+      "complexity": "Moderate",
+      "coupling": "Medium",
+      "debt": "No automated frontend tests; settings render is 412 lines; one raw error-to-innerHTML sink.",
+      "tests": "0% automated",
+      "complete": "100%"
+    },
+    {
+      "id": "M11",
+      "name": "Setup and documentation",
+      "purpose": "Interactive installer, .env generation, schema seed, README, contributing guide, decision log, Postman collection.",
+      "surface_db": "Tooling/docs \u00b7 schema seed",
+      "external": "npm install (zero deps)",
+      "components": "setup.js, README.md, CONTRIBUTING.md, coder_memory.md, postman/*",
+      "sloc": 185,
+      "files": 1,
+      "complexity": "Moderate",
+      "coupling": "Low",
+      "debt": "Setup writes .env before DB success; CONTRIBUTING.md is stale PHP-era guidance.",
+      "tests": "51% setup",
+      "complete": "100%"
+    }
+  ],
+  "coders": [
+    {
+      "name": "Sayak Mukherjee",
+      "identities": [
+        "sayakmukherjee080@gmail.com",
+        "50053780+sayakmukherjee080@users.noreply.github.com"
+      ],
+      "commits": 10,
+      "insertions": 20850,
+      "deletions": 700,
+      "files_touched": 268,
+      "unique_files": 152,
+      "primary_modules": "All application modules",
+      "active_window": "2026-01-02 to 2026-10-07",
+      "active_days": 5,
+      "overlap": "None; sole author",
+      "historical_hours": {
+        "optimistic": 30,
+        "expected": 42,
+        "pessimistic": 58
+      },
+      "share_pct": 100,
+      "architect": true,
+      "structural_hours": 15,
+      "feature_hours": 27,
+      "ambiguity": "Single identity and no merge commits. Two large bulk commits (9,270 and 8,804 insertions) look imported or AI-generated; commit timestamps understate the work. No pair-work or shared-account evidence."
+    }
+  ],
+  "historical": {
+    "commits": [
+      {
+        "hash": "1fb7e62",
+        "date": "2026-01-02T06:29:54+05:30",
+        "author": "Sayak Mukherjee",
+        "insertions": 661,
+        "deletions": 0,
+        "files": 1,
+        "subject": "Initial commit"
+      },
+      {
+        "hash": "e62f824",
+        "date": "2026-01-02T07:21:50+05:30",
+        "author": "Sayak Mukherjee",
+        "insertions": 9270,
+        "deletions": 0,
+        "files": 50,
+        "subject": "Initial release of SmolOrchestrator v1.0"
+      },
+      {
+        "hash": "2792b59",
+        "date": "2026-01-02T07:27:43+05:30",
+        "author": "Sayak Mukherjee",
+        "insertions": 2,
+        "deletions": 2,
+        "files": 1,
+        "subject": "Update README.md"
+      },
+      {
+        "hash": "452f4a5",
+        "date": "2026-01-02T15:37:03+05:30",
+        "author": "Sayak Mukherjee",
+        "insertions": 142,
+        "deletions": 36,
+        "files": 5,
+        "subject": "[HOTFIX] Global Max Quota Lock Solved"
+      },
+      {
+        "hash": "3060c92",
+        "date": "2026-01-02T22:01:07+05:30",
+        "author": "Sayak Mukherjee",
+        "insertions": 55,
+        "deletions": 23,
+        "files": 3,
+        "subject": "[HOTFIX] File Cache now syncs correctly with db"
+      },
+      {
+        "hash": "787603b",
+        "date": "2026-10-03T19:26:35+05:30",
+        "author": "Sayak Mukherjee",
+        "insertions": 8804,
+        "deletions": 382,
+        "files": 142,
+        "subject": "feat: node v2 gateway rewrite"
+      },
+      {
+        "hash": "8a671c8",
+        "date": "2026-10-04T14:07:22+05:30",
+        "author": "Sayak Mukherjee",
+        "insertions": 1406,
+        "deletions": 219,
+        "files": 35,
+        "subject": "feat: settings knobs and audit hardening"
+      },
+      {
+        "hash": "b0cc0a6",
+        "date": "2026-10-05T01:26:47+05:30",
+        "author": "Sayak Mukherjee",
+        "insertions": 64,
+        "deletions": 9,
+        "files": 8,
+        "subject": "fix: soft-delete reuse and settings/usage bugs"
+      },
+      {
+        "hash": "a642645",
+        "date": "2026-10-05T12:19:04+05:30",
+        "author": "Sayak Mukherjee",
+        "insertions": 412,
+        "deletions": 29,
+        "files": 21,
+        "subject": "feat: hardening gaps, password rotation, checksums"
+      },
+      {
+        "hash": "3b09518",
+        "date": "2026-10-07T03:33:38+05:30",
+        "author": "Sayak Mukherjee",
+        "insertions": 34,
+        "deletions": 0,
+        "files": 2,
+        "subject": "micro-bump"
+      }
+    ],
+    "methods": [
+      {
+        "name": "Session-gap (git-hours style)",
+        "configuration": "Gaps 60/120/240 min; first-commit allowance 30/60/120 min",
+        "sessions": 8,
+        "result_hours": {
+          "low": 4.96,
+          "mid": 8.96,
+          "high": 16.96
+        },
+        "note": "Changing the gap threshold does not change the session count: the only sub-4-hour gap is the 58-minute morning burst on 2026-01-02. This is a floor for commit-visible interaction, not total work."
+      },
+      {
+        "name": "Active-days",
+        "configuration": "5 active days x 6-9 focused hours/day",
+        "result_hours": {
+          "low": 30,
+          "high": 45
+        },
+        "note": "Commit density is low (2 commits/day average). Bulk commits on two of the five days indicate work done before the commit."
+      },
+      {
+        "name": "Bulk-commit adjustment",
+        "configuration": "Active-day range plus 0-30% allowance for work before first and after last commit",
+        "result_hours": {
+          "low": 30,
+          "high": 58
+        },
+        "note": "A 9,270-line release 52 minutes after the license commit, and an 8,804-line rewrite in one commit, cannot be treated as 52 minutes or one sitting of typing."
+      }
+    ],
+    "estimate": {
+      "optimistic": 30,
+      "expected": 42,
+      "pessimistic": 58,
+      "confidence": "Low",
+      "spread": "5-58 h across methods; most likely 42 h"
+    },
+    "current_scope_estimate": {
+      "optimistic": 20,
+      "expected": 29,
+      "pessimistic": 40,
+      "note": "Node v2 phases P3-P7 only; excludes 13 h of abandoned PHP v1 work."
+    },
+    "phases": [
+      {
+        "phase": "P0 Scaffold",
+        "dates": "2026-01-02 06:29",
+        "commits": 1,
+        "insertions": 661,
+        "deletions": 0,
+        "hours": 0.5,
+        "note": "AGPL license only."
+      },
+      {
+        "phase": "P1 PHP v1.0 + hotfixes",
+        "dates": "2026-01-02",
+        "commits": 4,
+        "insertions": 9469,
+        "deletions": 61,
+        "hours": 12.5,
+        "note": "9,270-line release, README fix, two hotfixes. Includes vendored frontend assets and a logo."
+      },
+      {
+        "phase": "P2 Dormancy",
+        "dates": "2026-01-03 to 2026-10-02",
+        "commits": 0,
+        "insertions": 0,
+        "deletions": 0,
+        "hours": 0,
+        "note": "No commits for nine months."
+      },
+      {
+        "phase": "P3 Node v2 rewrite",
+        "dates": "2026-10-03",
+        "commits": 1,
+        "insertions": 8804,
+        "deletions": 382,
+        "hours": 16,
+        "note": "Node gateway, tests, admin SPA, migrations, Postman; PHP moved to legacy/."
+      },
+      {
+        "phase": "P4 Settings and audit hardening",
+        "dates": "2026-10-04",
+        "commits": 1,
+        "insertions": 1406,
+        "deletions": 219,
+        "hours": 8,
+        "note": "Hot settings, audit hardening, providers UI, tests."
+      },
+      {
+        "phase": "P5 Soft-delete fix",
+        "dates": "2026-10-05",
+        "commits": 1,
+        "insertions": 64,
+        "deletions": 9,
+        "hours": 1.5,
+        "note": "Tombstone migration and soft-delete reuse fixes."
+      },
+      {
+        "phase": "P6 Security and ops",
+        "dates": "2026-10-05",
+        "commits": 1,
+        "insertions": 412,
+        "deletions": 29,
+        "hours": 3,
+        "note": "Password rotation, migration checksums, hardening tests."
+      },
+      {
+        "phase": "P7 Micro-bump",
+        "dates": "2026-10-07",
+        "commits": 1,
+        "insertions": 34,
+        "deletions": 0,
+        "hours": 0.5,
+        "note": "Gitignore and a PowerShell lint script."
+      }
+    ],
+    "assumptions": [
+      "Calendar time is not working time; the nine-month dormancy contributes zero hours.",
+      "Bulk commits are treated as previously uncommitted or generated work, not as minutes of typing.",
+      "No bot or automation commits were found; all 10 commits map to one human identity.",
+      "The historical figure measures human working time represented by the repository, not the human-equivalent rebuild cost."
+    ]
+  },
+  "bottom_up": {
+    "tasks": [
+      {
+        "id": "T1",
+        "task": "Requirements, architecture, specification",
+        "category": "Architecture / planning",
+        "complexity": "Moderate",
+        "optimistic": 48,
+        "most_likely": 55,
+        "pessimistic": 68,
+        "expected": 56.0,
+        "sigma": 3.33,
+        "confidence": "Low",
+        "reasoning": "Greenfield architecture, security model, data model and API contracts; no upstream specification."
+      },
+      {
+        "id": "T2",
+        "task": "Foundation, config, crypto, DB, setup",
+        "category": "Backend / infra",
+        "complexity": "Complex",
+        "optimistic": 55,
+        "most_likely": 70,
+        "pessimistic": 85,
+        "expected": 70.0,
+        "sigma": 5.0,
+        "confidence": "Medium",
+        "reasoning": "Native HTTP adapter, config loading, scrypt/AES/HMAC, migration runner and interactive installer."
+      },
+      {
+        "id": "T3",
+        "task": "Store and registry CRUD",
+        "category": "Backend",
+        "complexity": "Moderate",
+        "optimistic": 65,
+        "most_likely": 80,
+        "pessimistic": 101,
+        "expected": 81.0,
+        "sigma": 6.0,
+        "confidence": "High",
+        "reasoning": "Repeatable entity CRUD, validation, soft delete and in-memory registry consistency."
+      },
+      {
+        "id": "T4",
+        "task": "Gateway proxy core",
+        "category": "Backend / integrations",
+        "complexity": "Very Complex",
+        "optimistic": 110,
+        "most_likely": 137,
+        "pessimistic": 170,
+        "expected": 138.0,
+        "sigma": 10.0,
+        "confidence": "Low",
+        "reasoning": "Streaming passthrough, failover, key pools, cache-aware pins, capability routing and client abort handling."
+      },
+      {
+        "id": "T5",
+        "task": "Response cache and singleflight",
+        "category": "Backend",
+        "complexity": "Complex",
+        "optimistic": 28,
+        "most_likely": 35,
+        "pessimistic": 48,
+        "expected": 36.0,
+        "sigma": 3.33,
+        "confidence": "Medium",
+        "reasoning": "LRU, byte caps, singleflight, cache-key stability and invalidation semantics."
+      },
+      {
+        "id": "T6",
+        "task": "Probes, telemetry, metrics",
+        "category": "Backend / operations",
+        "complexity": "Complex",
+        "optimistic": 44,
+        "most_likely": 55,
+        "pessimistic": 72,
+        "expected": 56.0,
+        "sigma": 4.67,
+        "confidence": "Medium",
+        "reasoning": "Batched writes, flush/retry, Prometheus rendering, recovery and health timers."
+      },
+      {
+        "id": "T7",
+        "task": "Admin API and sessions",
+        "category": "Backend",
+        "complexity": "Complex",
+        "optimistic": 55,
+        "most_likely": 70,
+        "pessimistic": 91,
+        "expected": 71.0,
+        "sigma": 6.0,
+        "confidence": "Medium",
+        "reasoning": "Session/CSRF enforcement plus a broad CRUD, settings, usage, telemetry and config surface."
+      },
+      {
+        "id": "T8",
+        "task": "Dashboard UI",
+        "category": "Frontend",
+        "complexity": "Moderate",
+        "optimistic": 85,
+        "most_likely": 110,
+        "pessimistic": 135,
+        "expected": 110.0,
+        "sigma": 8.33,
+        "confidence": "High",
+        "reasoning": "Seven sections, forms, modals, tables, theme and responsive CSS in vanilla ES modules."
+      },
+      {
+        "id": "T9",
+        "task": "Test suite",
+        "category": "Testing",
+        "complexity": "Complex",
+        "optimistic": 68,
+        "most_likely": 85,
+        "pessimistic": 108,
+        "expected": 86.0,
+        "sigma": 6.67,
+        "confidence": "High",
+        "reasoning": "95 tests, stub upstream, isolated SQLite app and HTTP-level assertions."
+      },
+      {
+        "id": "T10",
+        "task": "Docs and Postman",
+        "category": "Documentation",
+        "complexity": "Simple",
+        "optimistic": 18,
+        "most_likely": 25,
+        "pessimistic": 32,
+        "expected": 25.0,
+        "sigma": 2.33,
+        "confidence": "High",
+        "reasoning": "README, decision log and a 41-request Postman collection."
+      },
+      {
+        "id": "T11",
+        "task": "Ops, deployment, hardening",
+        "category": "DevOps / security",
+        "complexity": "Moderate",
+        "optimistic": 30,
+        "most_likely": 40,
+        "pessimistic": 50,
+        "expected": 40.0,
+        "sigma": 3.33,
+        "confidence": "Low",
+        "reasoning": "Deployment, env configuration, backup/restore, security headers, rate limits and production checks."
+      },
+      {
+        "id": "T12",
+        "task": "QA, debugging, integration, coordination",
+        "category": "QA / process",
+        "complexity": "Moderate",
+        "optimistic": 38,
+        "most_likely": 49,
+        "pessimistic": 72,
+        "expected": 51.0,
+        "sigma": 5.67,
+        "confidence": "Low",
+        "reasoning": "Integration debugging, security review, acceptance and coordination across the build."
+      }
+    ],
+    "totals": {
+      "optimistic": 644,
+      "expected": 820,
+      "pessimistic": 1032
+    },
+    "sigma_total": 20.1,
+    "correlation_note": "PERT sigma for the 12 tasks is 20.1 h. Modules rarely err independently, so the 80% statistical band is widened by a 3x correlation factor to roughly 743-897 h. The headline 644-1,032 h is the wider judgment envelope across scope and dependency risk; it is not a claim of statistical precision."
+  },
+  "scenarios": {
+    "s1": {
+      "name": "Human only",
+      "expected_hours": 820,
+      "optimistic_hours": 644,
+      "pessimistic_hours": 1032,
+      "calendar_weeks": 27.3,
+      "saving_pct": 0,
+      "delegated_pct": 0,
+      "breakdown": {
+        "manual": 820,
+        "orchestration": 0,
+        "review": 0,
+        "rework": 0
+      }
+    },
+    "s2": {
+      "name": "Human + 50% AI",
+      "expected_hours": 559.1,
+      "optimistic_hours": 436.1,
+      "pessimistic_hours": 715.6,
+      "calendar_weeks": 18.6,
+      "saving_pct": 31.8,
+      "delegated_pct": 50,
+      "breakdown": {
+        "manual": 483.4,
+        "orchestration": 19.4,
+        "review": 27.6,
+        "rework": 28.7
+      }
+    },
+    "s3": {
+      "name": "Human + 75% AI",
+      "expected_hours": 491.5,
+      "optimistic_hours": 353.9,
+      "pessimistic_hours": 648.8,
+      "calendar_weeks": 16.4,
+      "saving_pct": 40.1,
+      "delegated_pct": 75,
+      "breakdown": {
+        "manual": 380.9,
+        "orchestration": 27.6,
+        "review": 39.9,
+        "rework": 43.1
+      }
+    },
+    "s4": {
+      "name": "Human planner / AI executor",
+      "expected_hours": 262.4,
+      "optimistic_hours": 196.8,
+      "pessimistic_hours": 354.2,
+      "calendar_weeks": 8.7,
+      "saving_pct": 68.0,
+      "delegated_pct": 100,
+      "breakdown": {
+        "manual": 123.0,
+        "orchestration": 32.8,
+        "review": 73.8,
+        "rework": 32.8
+      }
+    },
+    "leverage_classes": [
+      {
+        "class": "High",
+        "hours": 302,
+        "tasks": "CRUD, boilerplate APIs, UI sections, tests, docs, migrations, mechanical refactors",
+        "ai_executable_pct": 85,
+        "orchestration_pct": 5,
+        "review_pct": 7,
+        "rework_pct": 7,
+        "manual_residual_pct": 15,
+        "cost_factor": 0.34
+      },
+      {
+        "class": "Medium",
+        "hours": 371,
+        "tasks": "Business logic, integrations, streaming/failover, non-trivial refactors",
+        "ai_executable_pct": 55,
+        "orchestration_pct": 4,
+        "review_pct": 6,
+        "rework_pct": 7,
+        "manual_residual_pct": 45,
+        "cost_factor": 0.62
+      },
+      {
+        "class": "Low",
+        "hours": 147,
+        "tasks": "Architecture, security review, UX decisions, complex debugging, production incidents",
+        "ai_executable_pct": 10,
+        "orchestration_pct": 0,
+        "review_pct": 0,
+        "rework_pct": 0,
+        "manual_residual_pct": 95,
+        "cost_factor": 0.95
+      }
+    ],
+    "task_allocation": [
+      {
+        "task": "Requirements, architecture, specification",
+        "hours": 56,
+        "class": "Low",
+        "s2_delegated": 0,
+        "s3_delegated": 0,
+        "s4_delegated": 0
+      },
+      {
+        "task": "Foundation, config, crypto, DB, setup",
+        "hours": 70,
+        "class": "Medium",
+        "s2_delegated": 0,
+        "s3_delegated": 12,
+        "s4_delegated": 70
+      },
+      {
+        "task": "Store and registry CRUD",
+        "hours": 81,
+        "class": "High",
+        "s2_delegated": 81,
+        "s3_delegated": 81,
+        "s4_delegated": 81
+      },
+      {
+        "task": "Gateway proxy core",
+        "hours": 138,
+        "class": "Medium",
+        "s2_delegated": 108,
+        "s3_delegated": 138,
+        "s4_delegated": 138
+      },
+      {
+        "task": "Response cache and singleflight",
+        "hours": 36,
+        "class": "Medium",
+        "s2_delegated": 0,
+        "s3_delegated": 36,
+        "s4_delegated": 36
+      },
+      {
+        "task": "Probes, telemetry, metrics",
+        "hours": 56,
+        "class": "Medium",
+        "s2_delegated": 0,
+        "s3_delegated": 56,
+        "s4_delegated": 56
+      },
+      {
+        "task": "Admin API and sessions",
+        "hours": 71,
+        "class": "Medium",
+        "s2_delegated": 0,
+        "s3_delegated": 71,
+        "s4_delegated": 71
+      },
+      {
+        "task": "Dashboard UI",
+        "hours": 110,
+        "class": "High",
+        "s2_delegated": 110,
+        "s3_delegated": 110,
+        "s4_delegated": 110
+      },
+      {
+        "task": "Test suite",
+        "hours": 86,
+        "class": "High",
+        "s2_delegated": 86,
+        "s3_delegated": 86,
+        "s4_delegated": 86
+      },
+      {
+        "task": "Docs and Postman",
+        "hours": 25,
+        "class": "High",
+        "s2_delegated": 25,
+        "s3_delegated": 25,
+        "s4_delegated": 25
+      },
+      {
+        "task": "Ops, deployment, hardening",
+        "hours": 40,
+        "class": "Low",
+        "s2_delegated": 0,
+        "s3_delegated": 0,
+        "s4_delegated": 0
+      },
+      {
+        "task": "QA, debugging, integration, coordination",
+        "hours": 51,
+        "class": "Low",
+        "s2_delegated": 0,
+        "s3_delegated": 0,
+        "s4_delegated": 0
+      }
+    ],
+    "consistency_check": "Expected hours fall monotonically: 820 -> 559 -> 492 -> 262. Savings follow from the breakdown tables, not from a multiplier. Scenario 3 reaches 75% because High + Medium work is 673 h (82.1% of 820 h); no cap is needed.",
+    "s4_agent_wall_clock": {
+      "optimistic": 160,
+      "expected": 190,
+      "pessimistic": 240,
+      "note": "Agent execution and rework elapsed time, not human hours. Parallel work and review gates dominate."
+    },
+    "ai_automation_potential": {
+      "score": 67,
+      "calculation": "(302 x 1.0 + 371 x 0.6 + 147 x 0.15) / 820 = 546.65 / 820 = 66.7",
+      "autonomous_tasks": "CRUD endpoints, admin UI sections, migrations, tests, docs, mechanical refactors, simple integrations, Postman updates.",
+      "supervised_tasks": "Streaming/failover semantics, security review, budget/quota concurrency, pricing rules, production deployment, UX decisions, complex incident debugging."
+    }
+  },
+  "industry_models": {
+    "size_input": {
+      "ksloc": 5.425,
+      "basis": "cloc JavaScript + SQL production code",
+      "sensitivity": "Including CSS/HTML/JSON data (5.902 KSLOC) raises COCOMO 81 Organic by about 8.8%."
+    },
+    "models": [
+      {
+        "model": "Bottom-up (reference)",
+        "basis": "12 task PERT estimates",
+        "effort_pm": 5.39,
+        "hours": 820,
+        "schedule_months": 6.3,
+        "confidence": "Medium",
+        "delta_pct": 0.0,
+        "scope": "Full rebuild: requirements, architecture, backend, frontend, tests, docs, ops, hardening."
+      },
+      {
+        "model": "COCOMO 81 Basic \u2014 Organic",
+        "basis": "5.425 KSLOC; a=2.4, b=1.05, c=0.38",
+        "effort_pm": 14.17,
+        "hours": 2153,
+        "schedule_months": 6.85,
+        "confidence": "Medium",
+        "delta_pct": 162.6,
+        "scope": "Analysis, design, code, test; excludes deployment and maintenance."
+      },
+      {
+        "model": "COCOMO II Post-Architecture",
+        "basis": "5.425 KSLOC; E=1.10; EM product 0.6266",
+        "effort_pm": 11.84,
+        "hours": 1800,
+        "schedule_months": 8.05,
+        "confidence": "Medium",
+        "delta_pct": 119.5,
+        "scope": "Full development lifecycle through test; excludes maintenance."
+      },
+      {
+        "model": "IFPUG Function Points (backfired)",
+        "basis": "5,425 / 50 SLOC per FP = 108.5 FP; 8 h/FP",
+        "effort_pm": 5.71,
+        "hours": 868,
+        "schedule_months": null,
+        "confidence": "Low-Medium",
+        "delta_pct": 5.9,
+        "scope": "Functional delivery; backfired from SLOC, not an independent count."
+      },
+      {
+        "model": "COSMIC Function Points",
+        "basis": "30 functional processes x 5 data movements = 150 CFP; 4 h/CFP",
+        "effort_pm": 3.95,
+        "hours": 600,
+        "schedule_months": null,
+        "confidence": "Low",
+        "delta_pct": -26.8,
+        "scope": "Service/API functional processes; excludes UI, docs and ops."
+      },
+      {
+        "model": "SLOC productivity benchmark",
+        "basis": "108.5 FP x 10 h/FP; ISBSG/QSM-style band 8-12 h/FP",
+        "effort_pm": 7.14,
+        "hours": 1085,
+        "schedule_months": null,
+        "confidence": "Low",
+        "delta_pct": 32.3,
+        "scope": "Delivery-rate sanity band; not a lifecycle model."
+      }
+    ],
+    "historical_reference": {
+      "model": "Historical actual (Git reconstruction)",
+      "basis": "10 commits; session-gap + active-day methods",
+      "effort_pm": 0.28,
+      "hours": 42,
+      "schedule_months": null,
+      "confidence": "Low",
+      "delta_pct": -94.9,
+      "scope": "Human working time represented by history; not a rebuild estimate."
+    },
+    "cocomo81": {
+      "mode": "Organic",
+      "reason": "Small, single-team, familiar stack, flexible constraints. Semi-detached and embedded are shown as sensitivity because the gateway has integration and reliability complexity.",
+      "organic": {
+        "pm": 14.17,
+        "hours": 2153,
+        "tdev_months": 6.85
+      },
+      "semi": {
+        "pm": 19.93,
+        "hours": 3030,
+        "tdev_months": 7.14
+      },
+      "embedded": {
+        "pm": 27.38,
+        "hours": 4162,
+        "tdev_months": 7.23
+      }
+    },
+    "cocomo2": {
+      "scale_factors": [
+        {
+          "factor": "PREC",
+          "rating": "High",
+          "value": 4,
+          "evidence": "Familiar OpenAI-compatible gateway domain; some streaming/proxy novelty."
+        },
+        {
+          "factor": "FLEX",
+          "rating": "High",
+          "value": 4,
+          "evidence": "Few external constraints; self-hosted, no fixed delivery date."
+        },
+        {
+          "factor": "RESL",
+          "rating": "High",
+          "value": 4,
+          "evidence": "Architecture and risks resolved in coder_memory and code; no formal risk register."
+        },
+        {
+          "factor": "TEAM",
+          "rating": "Very High",
+          "value": 5,
+          "evidence": "Single developer, no coordination overhead."
+        },
+        {
+          "factor": "PMAT",
+          "rating": "Low",
+          "value": 2,
+          "evidence": "No CI, lint, formal reviews or process maturity."
+        }
+      ],
+      "sum_sf": 19,
+      "E": 1.1,
+      "effort_multipliers": [
+        {
+          "factor": "RELY",
+          "rating": "High",
+          "value": 1.1
+        },
+        {
+          "factor": "DATA",
+          "rating": "Low",
+          "value": 0.9
+        },
+        {
+          "factor": "CPLX",
+          "rating": "High",
+          "value": 1.15
+        },
+        {
+          "factor": "RUSE",
+          "rating": "Low",
+          "value": 0.95
+        },
+        {
+          "factor": "DOCU",
+          "rating": "Nominal",
+          "value": 1.0
+        },
+        {
+          "factor": "TIME",
+          "rating": "Nominal",
+          "value": 1.0
+        },
+        {
+          "factor": "STOR",
+          "rating": "Nominal",
+          "value": 1.0
+        },
+        {
+          "factor": "PVOL",
+          "rating": "Nominal",
+          "value": 1.0
+        },
+        {
+          "factor": "ACAP",
+          "rating": "High",
+          "value": 0.85
+        },
+        {
+          "factor": "PCAP",
+          "rating": "High",
+          "value": 0.85
+        },
+        {
+          "factor": "PCON",
+          "rating": "Nominal",
+          "value": 1.0
+        },
+        {
+          "factor": "APEX",
+          "rating": "High",
+          "value": 0.9
+        },
+        {
+          "factor": "PLEX",
+          "rating": "Nominal",
+          "value": 1.0
+        },
+        {
+          "factor": "LTEX",
+          "rating": "High",
+          "value": 0.9
+        },
+        {
+          "factor": "TOOL",
+          "rating": "Low",
+          "value": 1.1
+        },
+        {
+          "factor": "SITE",
+          "rating": "Very High",
+          "value": 0.9
+        },
+        {
+          "factor": "SCED",
+          "rating": "Nominal",
+          "value": 1.0
+        }
+      ],
+      "em_product": 0.6266,
+      "pm": 11.84,
+      "hours": 1800,
+      "tdev_months": 8.05
+    },
+    "not_applied": [
+      {
+        "model": "Use Case Points",
+        "reason": "No formal use cases or user stories; actor weighting would be arbitrary. Karner's 20 h/UCP is enterprise-calibrated and would overstate a single-process tool."
+      },
+      {
+        "model": "Putnam / SLIM",
+        "reason": "No defensible process productivity parameter or historical schedule/effort pair for this codebase."
+      },
+      {
+        "model": "Halstead volume/effort",
+        "reason": "No reliable JavaScript Halstead tool in the environment; token-count approximation is not defensible and the metric is legacy-only."
+      }
+    ],
+    "envelope": {
+      "min": 600,
+      "max": 2153,
+      "note": "Primary model rows only; COCOMO semi/embedded sensitivity reaches 4,162 h and is not used as the envelope."
+    }
+  },
+  "reconciliation": {
+    "independent_methods": 2,
+    "explanation": "The bottom-up estimate and COSMIC are independent families. COCOMO 81, COCOMO II, IFPUG backfire and the SLOC benchmark all share the same SLOC input; their convergence is weak evidence. COSMIC has low confidence.",
+    "bottom_up_inside_envelope": true,
+    "divergences": [
+      {
+        "model": "COCOMO 81 Organic",
+        "delta_pct": 162.6,
+        "reason": "Classic lifecycle model calibrated on pre-AI projects; includes analysis through test, uses a small-project exponent that produces high fixed overhead, and assumes 1980s productivity. Treated as an upper bound, not a correction."
+      },
+      {
+        "model": "COCOMO II",
+        "delta_pct": 119.5,
+        "reason": "E=1.10 from low process maturity and high team/precedent ratings; high RELY/CPLX and low TOOL push effort up. Still a full-lifecycle model, not a task-level rebuild."
+      },
+      {
+        "model": "IFPUG backfire",
+        "delta_pct": 5.9,
+        "reason": "Close to bottom-up, but backfired from the same SLOC input; not independent."
+      },
+      {
+        "model": "COSMIC",
+        "delta_pct": -26.8,
+        "reason": "Counts service/API data movements only and excludes UI, docs, ops and hardening; low confidence and subjective functional-process count."
+      },
+      {
+        "model": "SLOC benchmark",
+        "delta_pct": 32.3,
+        "reason": "Within the 35% threshold; benchmark midpoint. Same SLOC input as the COCOMO/FP cluster."
+      }
+    ],
+    "decision": "Bottom-up remains primary. COCOMO 81/II bound the upper end; IFPUG and the SLOC benchmark are sanity checks; COSMIC is a low-confidence independent check. No silent averaging.",
+    "scope_alignment": "COCOMO and IFPUG cover analysis through test; the bottom-up includes docs, deployment, hardening and coordination. Removing those (about 120 h) gives a COCOMO-aligned bottom-up of roughly 700 h; COCOMO remains 2.6-3.1x higher."
+  },
+  "complexity": {
+    "dimensions": [
+      {
+        "dimension": "Architecture",
+        "weight": 11.11,
+        "score": 6,
+        "evidence": "Five layers, 68 import edges, zero cycles; single process."
+      },
+      {
+        "dimension": "Backend",
+        "weight": 11.11,
+        "score": 7,
+        "evidence": "Streaming proxy, failover, key pools, cache, probes; 708 LOC core."
+      },
+      {
+        "dimension": "Frontend",
+        "weight": 9.26,
+        "score": 5,
+        "evidence": "Vanilla SPA, seven sections, 1.9k LOC, no framework."
+      },
+      {
+        "dimension": "Database",
+        "weight": 7.41,
+        "score": 4,
+        "evidence": "12 tables, 11 indexes, WAL, simple relational model."
+      },
+      {
+        "dimension": "Integrations",
+        "weight": 9.26,
+        "score": 7,
+        "evidence": "Any OpenAI-compatible provider, streaming, pricing map, upstream model discovery."
+      },
+      {
+        "dimension": "Infrastructure",
+        "weight": 7.41,
+        "score": 4,
+        "evidence": "Single Node process; no CI, container or orchestration."
+      },
+      {
+        "dimension": "Security",
+        "weight": 7.41,
+        "score": 7,
+        "evidence": "scrypt, AES-GCM, HMAC sessions, CSRF, rate limits, audit; single admin."
+      },
+      {
+        "dimension": "Business logic",
+        "weight": 12.96,
+        "score": 7,
+        "evidence": "Routing, quotas, budgets, pricing, capability checks, cache semantics."
+      },
+      {
+        "dimension": "Testing",
+        "weight": 3.7,
+        "score": 6,
+        "evidence": "95 tests, 82.9% line coverage; no frontend/browser/mutation tests."
+      },
+      {
+        "dimension": "Maintainability",
+        "weight": 5.56,
+        "score": 6,
+        "evidence": "Clean modules and comments; 18 high-CCN functions and one 412-line UI function."
+      },
+      {
+        "dimension": "Operational",
+        "weight": 7.41,
+        "score": 6,
+        "evidence": "Health, readiness, metrics, graceful shutdown, backups; no alerting or tracing."
+      },
+      {
+        "dimension": "AI/ML",
+        "weight": 8.0,
+        "score": 6,
+        "evidence": "LLM gateway domain and provider integration; no model training or inference code."
+      }
+    ],
+    "overall": 6.1,
+    "band": "Moderate",
+    "drivers": [
+      "Transparent streaming proxy with failover, cooldowns and active probes.",
+      "Multi-dimensional routing state: key pools, cache-aware pins, quotas, budgets and response cache in one process.",
+      "Security and operations surface: sessions, CSRF, encrypted provider keys, audit, metrics and backups with zero dependencies."
+    ],
+    "weight_note": "An AI/ML dimension was added at weight 8; the other 11 default weights were rescaled by 100/108."
+  },
+  "code_quality": {
+    "components": [
+      {
+        "component": "Structure and complexity",
+        "weight": 25,
+        "score": 78,
+        "evidence": "689 functions, mean CCN 2.55, median 1, 18 functions >15, max 49; 7 functions >100 lines; max file 533 lines. cloc + lizard."
+      },
+      {
+        "component": "Testing",
+        "weight": 20,
+        "score": 88,
+        "evidence": "95/95 pass; 82.9% line, 78.1% branch, 81.4% functions; HTTP-level integration tests. No frontend or mutation tests."
+      },
+      {
+        "component": "Architecture and modularity",
+        "weight": 15,
+        "score": 88,
+        "evidence": "Layering and separation of concerns: five layers, 68 internal import edges, zero cycles; clear composition root; Registry facade is broad but contained."
+      },
+      {
+        "component": "Security and defect hygiene",
+        "weight": 15,
+        "score": 82,
+        "evidence": "scrypt, AES-256-GCM, HMAC sessions, CSRF, rate limits, CSP, parameterized SQL, zero dependencies; single admin, warn-only checksums, one minor XSS sink."
+      },
+      {
+        "component": "Duplication and dead code",
+        "weight": 10,
+        "score": 88,
+        "evidence": "1.61% line duplication, 1.74% token duplication, 12 clones mostly tests/CSS; no TODOs; legacy tree excluded."
+      },
+      {
+        "component": "Delivery hygiene",
+        "weight": 10,
+        "score": 52,
+        "evidence": "No CI, lint, formatter, container or deployment automation; setup script, health checks and backups exist."
+      },
+      {
+        "component": "Documentation and conventions",
+        "weight": 5,
+        "score": 82,
+        "evidence": "Strong README, decision log and Postman; a comment above every function; stale CONTRIBUTING.md and no ADRs."
+      }
+    ],
+    "score": 81,
+    "band": "Good",
+    "health": [
+      {
+        "metric": "Observability",
+        "score": 80,
+        "reason": "Structured JSON logs, request IDs, Prometheus metrics, health/readiness, telemetry; no tracing or alerting."
+      },
+      {
+        "metric": "DevOps maturity",
+        "score": 45,
+        "reason": "Manual install and deploy, no CI/CD, container or lint pipeline; graceful shutdown and backups are present."
+      },
+      {
+        "metric": "Security posture",
+        "score": 82,
+        "reason": "Strong primitives and zero runtime dependencies; single admin, no RBAC, warn-only migration checksums."
+      },
+      {
+        "metric": "AI-readiness",
+        "score": 72,
+        "reason": "Small modules, tests and comments help agents; no type contracts, specs per module or task decomposition."
+      }
+    ],
+    "controls": [
+      {
+        "control": "Authentication",
+        "status": "Present",
+        "evidence": "scrypt password, signed HttpOnly session, TTL, password-change invalidation."
+      },
+      {
+        "control": "Authorization / RBAC",
+        "status": "Partial",
+        "evidence": "Single admin account; no roles or per-resource ownership model."
+      },
+      {
+        "control": "CSRF",
+        "status": "Present",
+        "evidence": "Session-bound CSRF token required on non-GET admin requests."
+      },
+      {
+        "control": "Input validation",
+        "status": "Present",
+        "evidence": "Field validators, JSON shape checks, body caps, capability allowlist."
+      },
+      {
+        "control": "SQL injection",
+        "status": "Present",
+        "evidence": "Parameterized statements throughout; one VACUUM INTO path built from env config."
+      },
+      {
+        "control": "XSS",
+        "status": "Mostly present",
+        "evidence": "escapeHtml used in templates; app.js injects error.message into innerHTML (minor, admin-only)."
+      },
+      {
+        "control": "Secrets",
+        "status": "Present",
+        "evidence": ".env gitignored; provider keys AES-256-GCM encrypted; .env.example has no secrets."
+      },
+      {
+        "control": "Rate limiting",
+        "status": "Present",
+        "evidence": "Per-IP sliding window on gateway; login lockout per IP."
+      },
+      {
+        "control": "Security headers",
+        "status": "Present",
+        "evidence": "CSP on admin, nosniff, frame deny, referrer policy; no HSTS (TLS expected at proxy)."
+      },
+      {
+        "control": "Audit trail",
+        "status": "Present",
+        "evidence": "Insert-only audit table for login, mutations, password changes; async writes."
+      },
+      {
+        "control": "Migration integrity",
+        "status": "Partial",
+        "evidence": "Checksums recorded and compared, but a mismatch only logs a warning."
+      },
+      {
+        "control": "Backup / restore",
+        "status": "Partial",
+        "evidence": "Scheduled VACUUM INTO snapshots; restore is manual and not verified."
+      },
+      {
+        "control": "CI / SAST",
+        "status": "Absent",
+        "evidence": "No CI configuration, linter, formatter or static analysis."
+      }
+    ]
+  },
+  "planning": {
+    "intended_architecture": {
+      "summary": "Single-process Node.js 22 gateway with zero runtime dependencies, native HTTP/SQLite/fetch, a layered util-store-gateway-admin-server structure, an OpenAI-compatible transparent proxy, a vanilla JS admin SPA, SQLite WAL persistence, background timers and a test suite.",
+      "sources": [
+        {
+          "artifact": "README.md",
+          "location": "repo root",
+          "content": "Architecture, tech stack, features, operations, API and testing.",
+          "freshness": "Current at cutoff."
+        },
+        {
+          "artifact": "coder_memory.md",
+          "location": "repo root",
+          "content": "19 architecture/style/security decisions, including runtime pivot, zero-dependency constraint, routing/cache/telemetry design.",
+          "freshness": "Current at cutoff; 20th entry added after cutoff."
+        },
+        {
+          "artifact": "Postman collection",
+          "location": "postman/",
+          "content": "41 documented requests and CSRF flow.",
+          "freshness": "Current at cutoff."
+        },
+        {
+          "artifact": "Migrations 001-004",
+          "location": "migrations/",
+          "content": "Schema, proxy features, tombstones, password rotation.",
+          "freshness": "Current at cutoff."
+        },
+        {
+          "artifact": "CONTRIBUTING.md",
+          "location": "repo root",
+          "content": "PHP-era constraints: no npm, shared hosting, PHP migrations.",
+          "freshness": "Stale; contradicts the Node rewrite."
+        },
+        {
+          "artifact": "Commit messages",
+          "location": "git log",
+          "content": "Initial PHP release, Node v2 rewrite, settings, fixes, hardening.",
+          "freshness": "Current."
+        },
+        {
+          "artifact": "ADRs / specs / diagrams",
+          "location": "not present",
+          "content": "No formal ADRs, specs or diagrams in the repository.",
+          "freshness": "n/a"
+        }
+      ]
+    },
+    "fidelity": [
+      {
+        "element": "Single-process Node.js runtime, zero dependencies",
+        "status": "Built as planned",
+        "evidence": "e62f824, 787603b; package.json has no dependencies; src/server.js; coder_memory 2026-10-03."
+      },
+      {
+        "element": "Layered module structure",
+        "status": "Built as planned",
+        "evidence": "787603b; src/util, src/store, src/gateway, src/admin, src/router.js, src/server.js; zero import cycles."
+      },
+      {
+        "element": "SQLite schema for models, providers, routes, tokens",
+        "status": "Built as planned",
+        "evidence": "787603b; migrations/001_init.sql; 12 tables, 11 indexes."
+      },
+      {
+        "element": "OpenAI-compatible transparent proxy",
+        "status": "Built as planned",
+        "evidence": "787603b; src/gateway/forward.js; byte transparency tests."
+      },
+      {
+        "element": "Round-robin / least-used / cache-aware routing",
+        "status": "Built with modification",
+        "evidence": "787603b, 8a671c8; src/gateway/balance.js, pins.js; cache-aware pinning refined after initial rewrite."
+      },
+      {
+        "element": "Provider key pools and 401/403 bench",
+        "status": "Built as planned",
+        "evidence": "787603b; src/gateway/pools.js, store/providers.js; auth tests."
+      },
+      {
+        "element": "Failover, cooldown and active probes",
+        "status": "Built as planned",
+        "evidence": "787603b; src/gateway/cooldown.js, probe.js; routing/health tests."
+      },
+      {
+        "element": "Per-token budgets and per-route quotas",
+        "status": "Built with modification",
+        "evidence": "787603b, 8a671c8; budget entry superseded the earlier no-token-quota decision; src/store/load.js, tokens.js."
+      },
+      {
+        "element": "Exact response cache and singleflight",
+        "status": "Built as planned",
+        "evidence": "787603b; src/gateway/cache.js; cache tests."
+      },
+      {
+        "element": "Capability-aware routing",
+        "status": "Built as planned",
+        "evidence": "787603b; src/gateway/requirements.js, balance.js; capabilities tests."
+      },
+      {
+        "element": "Telemetry, usage, Prometheus metrics without content",
+        "status": "Built as planned",
+        "evidence": "787603b, 8a671c8; src/gateway/telemetry.js, metrics.js, usage.js."
+      },
+      {
+        "element": "Modern minimal admin UI, light/dark",
+        "status": "Built as planned",
+        "evidence": "787603b, 8a671c8; web/index.html, styles.css, sections/*; no CDN or build step."
+      },
+      {
+        "element": "Backups and config export/import",
+        "status": "Built as planned",
+        "evidence": "787603b, 8a671c8; src/store/backup.js, configBundle.js; backup/config tests."
+      },
+      {
+        "element": "Migration checksums",
+        "status": "Built with modification",
+        "evidence": "a642645; deferred in coder_memory, then implemented warn-only in src/store/db.js."
+      },
+      {
+        "element": "Password rotation",
+        "status": "Unplanned addition",
+        "evidence": "a642645, migration 004, admin session/API changes."
+      },
+      {
+        "element": "Soft-delete tombstone reuse",
+        "status": "Unplanned addition",
+        "evidence": "b0cc0a6, migration 003, store changes."
+      },
+      {
+        "element": "PHP v1 application and playground/mappings",
+        "status": "Replaced / abandoned",
+        "evidence": "e62f824, 787603b; legacy/ tree; v2 Node rewrite. Out of current scope."
+      },
+      {
+        "element": "Webhooks, Slack/email notifications, native non-OpenAI protocols",
+        "status": "Deliberately deferred",
+        "evidence": "coder_memory 2026-10-03; not built."
+      }
+    ],
+    "fidelity_split": {
+      "as_planned": 70,
+      "modified": 18,
+      "abandoned": 0,
+      "unplanned": 12
+    },
+    "scorecard": [
+      {
+        "component": "Architectural conformance",
+        "weight": 25,
+        "score": 88,
+        "evidence": "All five planned layers exist; no planned module is missing; one unplanned admin-to-gateway pricing import is outer-to-inner; no module boundary erosion across the Node rewrite."
+      },
+      {
+        "component": "Foundation stability",
+        "weight": 20,
+        "score": 86,
+        "evidence": "Schema changes are additive (002-004); API contracts stayed stable after the Node rewrite; no framework swap after first release."
+      },
+      {
+        "component": "Planning-attributable rework",
+        "weight": 20,
+        "score": 74,
+        "evidence": "7-12% of historical effort lost to planning-gap rework (about 3-5 h); soft-delete reuse and settings/usage interactions."
+      },
+      {
+        "component": "Change locality",
+        "weight": 15,
+        "score": 68,
+        "evidence": "Median 6.5 files per commit across all history; node-phase median 21 files; broad but coherent feature episodes."
+      },
+      {
+        "component": "Decomposition and delegability",
+        "weight": 10,
+        "score": 80,
+        "evidence": "Clear module interfaces and tests; broad Registry facade and three large handlers reduce parallel delegability."
+      },
+      {
+        "component": "Plan artifacts and traceability",
+        "weight": 10,
+        "score": 62,
+        "evidence": "Strong README, decision log and Postman; no ADRs/specs; stale CONTRIBUTING.md; no plan-to-PR traceability."
+      }
+    ],
+    "score": 78,
+    "band": "Sound",
+    "confidence": "Medium",
+    "architect": "Sayak Mukherjee [Inferred]",
+    "attribution": "Sole author and decision owner. About 35% of historical effort (15 h) was structural/design work; 65% (27 h) feature coding. Attribution cannot be separated further because one identity wrote every commit.",
+    "rework": {
+      "planning_gap_hours": {
+        "low": 3,
+        "high": 5
+      },
+      "planning_gap_pct": {
+        "low": 7,
+        "high": 12
+      },
+      "episodes": [
+        {
+          "episode": "Soft-delete reuse blocked by unique names/hashes",
+          "classification": "Planning gap",
+          "evidence": "b0cc0a6, migration 003, store/models.js, providers.js, tokens.js",
+          "hours": "1.5-2.5"
+        },
+        {
+          "episode": "Settings/usage interactions after hot settings",
+          "classification": "Planning gap",
+          "evidence": "b0cc0a6, src/admin/api.js, web/js/sections/settings.js, test/admin.test.js",
+          "hours": "1-2"
+        },
+        {
+          "episode": "Password rotation and checksum hardening",
+          "classification": "Requirements change / security hardening",
+          "evidence": "a642645, migration 004",
+          "hours": "0 charged"
+        },
+        {
+          "episode": "PHP v1 to Node v2 rewrite",
+          "classification": "Requirements / technology change",
+          "evidence": "787603b, legacy/",
+          "hours": "0 charged; out of current scope"
+        },
+        {
+          "episode": "Migration checksum mismatch only warns",
+          "classification": "Execution defect",
+          "evidence": "src/store/db.js",
+          "hours": "0 charged; remediation debt"
+        },
+        {
+          "episode": "Provider base URL changes do not invalidate response cache",
+          "classification": "Execution defect",
+          "evidence": "src/admin/api.js provider PATCH path",
+          "hours": "0 charged; remediation debt"
+        },
+        {
+          "episode": "Cache-aware pin reassignment semantics refined",
+          "classification": "Normal evolution",
+          "evidence": "787603b, 8a671c8, src/gateway/pins.js",
+          "hours": "0 charged"
+        }
+      ],
+      "saved_effort_note": "The plan saved effort where it mattered: the Node rewrite landed with a stable layer structure, additive schema changes and a 95-test suite; cache, routing and telemetry features landed with small blast radii. No hours are invented for these effects."
+    }
+  },
+  "technical_debt": {
+    "items": [
+      {
+        "priority": "Must fix",
+        "item": "No CI, lint or formatter",
+        "evidence": "No .github/, eslint, prettier or equivalent",
+        "optimistic": 14,
+        "expected": 20,
+        "pessimistic": 30
+      },
+      {
+        "priority": "Must fix",
+        "item": "No migration down/rollback files",
+        "evidence": "migrations/001-004 are up-only",
+        "optimistic": 8,
+        "expected": 12,
+        "pessimistic": 20
+      },
+      {
+        "priority": "Must fix",
+        "item": "No automated frontend tests",
+        "evidence": "web/ has 0% coverage; no browser test harness",
+        "optimistic": 18,
+        "expected": 28,
+        "pessimistic": 42
+      },
+      {
+        "priority": "Must fix",
+        "item": "Complexity hotspots",
+        "evidence": "telemetry.flushInternal CCN 49; admin.handle 37; forward.handleProxy 34",
+        "optimistic": 14,
+        "expected": 20,
+        "pessimistic": 32
+      },
+      {
+        "priority": "Must fix",
+        "item": "Under-tested bootstrap paths",
+        "evidence": "server.js 58.9%; setup.js 50.9%",
+        "optimistic": 6,
+        "expected": 10,
+        "pessimistic": 16
+      },
+      {
+        "priority": "Should fix",
+        "item": "Stale CONTRIBUTING.md",
+        "evidence": "PHP/no-npm guidance contradicts the Node app",
+        "optimistic": 2,
+        "expected": 3,
+        "pessimistic": 5
+      },
+      {
+        "priority": "Should fix",
+        "item": "Legacy tree retained in repo",
+        "evidence": "62 files, 4,535 code lines under legacy/",
+        "optimistic": 3,
+        "expected": 5,
+        "pessimistic": 8
+      },
+      {
+        "priority": "Should fix",
+        "item": "Backup restore not verified",
+        "evidence": "README manual restore; no restore test",
+        "optimistic": 2,
+        "expected": 4,
+        "pessimistic": 7
+      },
+      {
+        "priority": "Should fix",
+        "item": "Migration checksum mismatch only warns",
+        "evidence": "src/store/db.js lines 42-44",
+        "optimistic": 1,
+        "expected": 3,
+        "pessimistic": 5
+      },
+      {
+        "priority": "Should fix",
+        "item": "Setup partial-state risk",
+        "evidence": ".env written before DB/admin success",
+        "optimistic": 2,
+        "expected": 4,
+        "pessimistic": 7
+      },
+      {
+        "priority": "Should fix",
+        "item": "Minor XSS sink in error rendering",
+        "evidence": "web/js/app.js line 60",
+        "optimistic": 1,
+        "expected": 1,
+        "pessimistic": 2
+      },
+      {
+        "priority": "Should fix",
+        "item": "Token list exposes key hashes",
+        "evidence": "src/store/load.js listTokens spreads keyHash into /api/v1/tokens",
+        "optimistic": 1,
+        "expected": 2,
+        "pessimistic": 3
+      },
+      {
+        "priority": "Should fix",
+        "item": "Provider edit does not invalidate response cache",
+        "evidence": "src/admin/api.js provider PATCH path",
+        "optimistic": 1,
+        "expected": 2,
+        "pessimistic": 3
+      },
+      {
+        "priority": "Nice to fix",
+        "item": "Modal focus trap and accessibility",
+        "evidence": "web/js/ui.js openModal",
+        "optimistic": 3,
+        "expected": 5,
+        "pessimistic": 8
+      },
+      {
+        "priority": "Nice to fix",
+        "item": "JSDoc / type contracts",
+        "evidence": "No types or JSDoc across src/",
+        "optimistic": 10,
+        "expected": 16,
+        "pessimistic": 28
+      },
+      {
+        "priority": "Nice to fix",
+        "item": "Pagination for admin lists",
+        "evidence": "Models/providers/tokens lists are unpaginated",
+        "optimistic": 4,
+        "expected": 8,
+        "pessimistic": 12
+      }
+    ],
+    "totals": {
+      "must": {
+        "optimistic": 60,
+        "expected": 90,
+        "pessimistic": 140
+      },
+      "should": {
+        "optimistic": 13,
+        "expected": 24,
+        "pessimistic": 40
+      },
+      "nice": {
+        "optimistic": 17,
+        "expected": 29,
+        "pessimistic": 48
+      },
+      "all": {
+        "optimistic": 90,
+        "expected": 143,
+        "pessimistic": 228
+      }
+    },
+    "ratio": {
+      "pct": 17.4,
+      "formula": "143 expected remediation hours / 820 expected rebuild hours"
+    },
+    "planning_rework_line": "Historical planning-gap rework: 3-5 h (7-12% of 42 h historical effort). Not included in current remediation totals."
+  },
+  "risks": [
+    {
+      "risk": "Historical effort understated by bulk/AI-generated commits",
+      "direction": "Under",
+      "impact": "Historical 42 h could be 30-58 h; true human equivalent may be higher.",
+      "confidence": "Low"
+    },
+    {
+      "risk": "No external planning artifacts supplied",
+      "direction": "Either",
+      "impact": "Architect score could move +/- 10 points; confidence capped at Medium.",
+      "confidence": "Medium"
+    },
+    {
+      "risk": "Classic models overstate small modern projects",
+      "direction": "Over",
+      "impact": "COCOMO 81/II are 2.2-2.6x the bottom-up; used as bounds, not point estimates.",
+      "confidence": "High"
+    },
+    {
+      "risk": "Legacy PHP excluded from scope",
+      "direction": "Under",
+      "impact": "If legacy is in scope, add roughly 300-500 h and 4.5k code lines.",
+      "confidence": "High"
+    },
+    {
+      "risk": "Frontend untested",
+      "direction": "Under",
+      "impact": "Code quality and remediation could be 5-10% worse; debt may rise by 20-40 h.",
+      "confidence": "Medium"
+    },
+    {
+      "risk": "No production runtime evidence",
+      "direction": "Either",
+      "impact": "Operational complexity and performance risk may be higher than static analysis shows.",
+      "confidence": "Low-Medium"
+    },
+    {
+      "risk": "Single-author attribution",
+      "direction": "Neutral",
+      "impact": "Per-coder split is trivial and reliable; structural-vs-feature split is inferred, not measured.",
+      "confidence": "High for mapping, Low for split"
+    },
+    {
+      "risk": "Coverage is line/branch only",
+      "direction": "Over",
+      "impact": "82.9% line coverage can mask assertion gaps and flaky behavior; no mutation testing.",
+      "confidence": "Medium"
+    }
+  ],
+  "assumptions": [
+    "One experienced developer (5+ years) rebuilds the same functionality today with the same quality bar.",
+    "The quality bar includes tests, security basics and deployment, but not new features.",
+    "Production size is JavaScript + SQL only; CSS/HTML/JSON data are excluded from the model size input.",
+    "Legacy PHP is out of current scope; it is reference material, not a deliverable.",
+    "Person-month = 152 hours; calendar conversion uses 30 focused hours per week.",
+    "Historical hours measure human working time represented by the repository, not human-equivalent rebuild cost.",
+    "AI leverage classes and overhead percentages are judgment, calibrated by the code quality and planning scores.",
+    "The 7-12% planning-gap rework is a range, not a precise attribution; requirement changes and execution defects are not charged to the architect."
+  ],
+  "final_verdict": {
+    "what": "A self-hosted, zero-dependency OpenAI-compatible AI gateway: routing, key pools, failover, cooldowns, probes, response cache, budgets, capability routing, telemetry, Prometheus metrics, backups, config transfer and a vanilla JS admin dashboard.",
+    "difficulty": "6.1/10 Moderate. The hard parts are the streaming proxy and failover state machine, then the security/ops surface; the CRUD and UI are routine.",
+    "planning": "78/100 Sound, Medium confidence. The architecture is coherent and the code follows it; the main weaknesses are no ADRs, a stale contributing guide and 7-12% planning-gap rework.",
+    "effort": "Historical: 42 h total (30-58 h, Low confidence), of which 29 h (20-40 h) is the current Node scope; 13 h was the abandoned PHP v1. Human-only rebuild today: 820 h (644-1,032 h), 27.3 calendar weeks.",
+    "scenarios": "Human + 50% AI: 559 h (32% saving). Human + 75% AI: 492 h (40% saving). Human planner / AI executor: 262 human hours (68% saving), plus about 190 h of agent wall-clock. AI automation potential: 67/100.",
+    "industry": "Models span 600-2,153 h. IFPUG backfire (+5.9%) and the SLOC benchmark (+32.3%) are near the bottom-up; COSMIC is 26.8% lower; COCOMO 81/II are 2.2-2.6x higher. Bottom-up remains primary.",
+    "humans": "Architecture, security review, streaming/failover debugging, quota/budget concurrency, UX decisions, production deployment and integration QA still need a human.",
+    "risks": "Historical undercount from bulk commits, classic-model overcount, no external plan, untested frontend and excluded legacy are the largest risks.",
+    "confidence": "Medium overall: size High, code quality Medium-High, historical Low, bottom-up Medium, scenarios Medium-Low, architect Medium."
+  },
+  "closing_note": {
+    "analyzed": "All 10 commits on main through 3b09518, all 152 tracked files at the cutoff tree, 5,902 production/infra code lines, 2,154 test code lines, 41 documented API requests, 12 database tables and the full working tree excluding the two post-cutoff modifications.",
+    "sampled_or_skipped": "No production runtime was started; no browser or load test was run; no mutation testing; no coverage of legacy PHP; no external planning artifacts were available; no formal ADRs or specs exist. The legacy tree was counted separately and excluded from current-scope metrics.",
+    "confidence": "Size and test figures are High confidence. Historical effort is Low confidence because bulk commits hide work. Bottom-up and scenario figures are Medium to Medium-Low. Architect score is Medium confidence because planning lived mostly in the repo and one person wrote every commit."
+  }
+}

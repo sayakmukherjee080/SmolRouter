@@ -6,54 +6,7 @@ import { ValidationError } from '../store/validate.js';
 import { dayWindow } from '../store/windows.js';
 import { exportBundle, importBundle } from '../store/configBundle.js';
 import { resolveRouteCost } from '../gateway/pricing.js';
-
-const SETTING_KEYS = new Set([
-  'backoff_base_ms', 'backoff_cap_ms', 'probe_enabled', 'probe_budget_per_hour',
-  'health_check_enabled', 'health_check_interval_ms',
-  'response_cache_enabled', 'response_cache_ttl_ms', 'response_cache_max_entries',
-  'response_cache_max_body_bytes', 'response_cache_max_total_bytes',
-  'cached_input_discount', 'budget_warn_ratio',
-  'telemetry_retention_days', 'usage_retention_days',
-  'max_attempts', 'idle_timeout_ms', 'key_disable_ms', 'key_retries_per_route',
-  'probe_prompt', 'probe_max_tokens', 'max_body_bytes', 'usage_parse_max_bytes',
-  'trust_proxy', 'cookie_secure', 'ip_rate_limit', 'ip_rate_window_ms',
-  'login_max_attempts', 'login_lockout_ms', 'session_ttl_ms', 'metrics_token',
-  'telemetry_buffer_max', 'telemetry_flush_ms', 'backup_interval_ms', 'backup_keep',
-  'maintenance_interval_ms',
-]);
-const BOOLEAN_SETTINGS = new Set([
-  'probe_enabled', 'health_check_enabled', 'response_cache_enabled', 'trust_proxy', 'cookie_secure',
-]);
-const STRING_SETTINGS = new Map([
-  ['probe_prompt', { max: 200, allowEmpty: false }],
-  ['metrics_token', { max: 256, allowEmpty: true }],
-]);
-const MINIMUM_SETTINGS = new Map([
-  ['health_check_interval_ms', 10000],
-  ['response_cache_ttl_ms', 1000],
-  ['response_cache_max_entries', 1],
-  ['response_cache_max_body_bytes', 1024],
-  ['response_cache_max_total_bytes', 1024],
-  ['max_attempts', 1],
-  ['idle_timeout_ms', 1000],
-  ['key_disable_ms', 1000],
-  ['key_retries_per_route', 1],
-  ['probe_max_tokens', 1],
-  ['max_body_bytes', 1024],
-  ['usage_parse_max_bytes', 1024],
-  ['ip_rate_limit', 1],
-  ['ip_rate_window_ms', 1000],
-  ['login_max_attempts', 1],
-  ['login_lockout_ms', 1000],
-  ['session_ttl_ms', 60000],
-  ['telemetry_buffer_max', 100],
-  ['telemetry_flush_ms', 50],
-  ['backup_interval_ms', 3600000],
-  ['backup_keep', 1],
-  ['maintenance_interval_ms', 3600000],
-  ['usage_retention_days', 32],
-]);
-const RATIO_SETTINGS = new Set(['cached_input_discount', 'budget_warn_ratio']);
+import { createSettingsService } from './settings.js';
 
 // Returns the requested percentile from a sorted numeric array.
 function percentile(sorted, quantile) {
@@ -64,80 +17,18 @@ function percentile(sorted, quantile) {
 // Reads and parses a JSON request body with the configured size cap.
 async function readJson(request, config, registry) {
   const raw = await readBodyCapped(request.body, registry.setting('max_body_bytes', config.maxBodyBytes));
-  return parseJsonBody(raw);
+  const parsed = parseJsonBody(raw);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    const error = new Error('Request body must be a JSON object');
+    error.code = 'BAD_JSON';
+    throw error;
+  }
+  return parsed;
 }
 
-export function createAdminApi({ registry, session, config, logger, backups, gateway }) {
-  // Builds a settings view merged from config defaults and stored overrides.
-  function settingsView() {
-    return {
-      backoff_base_ms: registry.setting('backoff_base_ms', config.backoffBaseMs),
-      backoff_cap_ms: registry.setting('backoff_cap_ms', config.backoffCapMs),
-      probe_enabled: registry.setting('probe_enabled', config.probeEnabled),
-      probe_budget_per_hour: registry.setting('probe_budget_per_hour', config.probeBudgetPerHour),
-      health_check_enabled: registry.setting('health_check_enabled', config.healthCheckEnabled),
-      health_check_interval_ms: registry.setting('health_check_interval_ms', config.healthCheckIntervalMs),
-      response_cache_enabled: registry.setting('response_cache_enabled', config.responseCacheEnabled),
-      response_cache_ttl_ms: registry.setting('response_cache_ttl_ms', config.responseCacheTtlMs),
-      response_cache_max_entries: registry.setting('response_cache_max_entries', config.responseCacheMaxEntries),
-      response_cache_max_body_bytes: registry.setting('response_cache_max_body_bytes', config.responseCacheMaxBodyBytes),
-      response_cache_max_total_bytes: registry.setting('response_cache_max_total_bytes', config.responseCacheMaxTotalBytes),
-      cached_input_discount: registry.setting('cached_input_discount', config.cachedInputDiscount),
-      budget_warn_ratio: registry.setting('budget_warn_ratio', config.budgetWarnRatio),
-      telemetry_retention_days: registry.setting('telemetry_retention_days', config.telemetryRetentionDays),
-      usage_retention_days: registry.setting('usage_retention_days', config.usageRetentionDays),
-      max_attempts: registry.setting('max_attempts', config.maxAttempts),
-      idle_timeout_ms: registry.setting('idle_timeout_ms', config.idleTimeoutMs),
-      key_disable_ms: registry.setting('key_disable_ms', config.keyDisableMs),
-      key_retries_per_route: registry.setting('key_retries_per_route', config.keyRetriesPerRoute),
-      probe_prompt: registry.setting('probe_prompt', config.probePrompt),
-      probe_max_tokens: registry.setting('probe_max_tokens', config.probeMaxTokens),
-      max_body_bytes: registry.setting('max_body_bytes', config.maxBodyBytes),
-      usage_parse_max_bytes: registry.setting('usage_parse_max_bytes', config.usageParseMaxBytes),
-      trust_proxy: registry.setting('trust_proxy', config.trustProxy),
-      cookie_secure: registry.setting('cookie_secure', config.cookieSecure),
-      ip_rate_limit: registry.setting('ip_rate_limit', config.ipRateLimit),
-      ip_rate_window_ms: registry.setting('ip_rate_window_ms', config.ipRateWindowMs),
-      login_max_attempts: registry.setting('login_max_attempts', config.loginMaxAttempts),
-      login_lockout_ms: registry.setting('login_lockout_ms', config.loginLockoutMs),
-      session_ttl_ms: registry.setting('session_ttl_ms', config.sessionTtlMs),
-      metrics_token: registry.setting('metrics_token', config.metricsToken),
-      telemetry_buffer_max: registry.setting('telemetry_buffer_max', config.telemetryBufferMax),
-      telemetry_flush_ms: registry.setting('telemetry_flush_ms', config.telemetryFlushMs),
-      backup_interval_ms: registry.setting('backup_interval_ms', config.backupIntervalMs),
-      backup_keep: registry.setting('backup_keep', config.backupKeep),
-      maintenance_interval_ms: registry.setting('maintenance_interval_ms', config.maintenanceIntervalMs),
-    };
-  }
-
-  // Validates and persists runtime settings.
-  function updateSettings(body) {
-    for (const [key, value] of Object.entries(body || {})) {
-      if (!SETTING_KEYS.has(key)) throw new ValidationError(`unknown setting ${key}`);
-      if (BOOLEAN_SETTINGS.has(key)) {
-        if (typeof value !== 'boolean') throw new ValidationError(`${key} must be boolean`);
-        registry.setSetting(key, value);
-        continue;
-      }
-      const stringRule = STRING_SETTINGS.get(key);
-      if (stringRule) {
-        if (typeof value !== 'string') throw new ValidationError(`${key} must be a string`);
-        const trimmed = value.trim();
-        if (!stringRule.allowEmpty && !trimmed) throw new ValidationError(`${key} must not be empty`);
-        if (trimmed.length > stringRule.max) throw new ValidationError(`${key} is too long`);
-        registry.setSetting(key, trimmed);
-        continue;
-      }
-      const num = Number(value);
-      if (!Number.isFinite(num) || num < 0) throw new ValidationError(`${key} must be a non-negative number`);
-      if (RATIO_SETTINGS.has(key) && num > 1) throw new ValidationError(`${key} must be between 0 and 1`);
-      if (key === 'max_attempts' && num > 64) throw new ValidationError('max_attempts must be at most 64');
-      const minimum = MINIMUM_SETTINGS.get(key);
-      if (minimum !== undefined && num < minimum) throw new ValidationError(`${key} must be at least ${minimum}`);
-      registry.setSetting(key, RATIO_SETTINGS.has(key) ? num : Math.trunc(num));
-    }
-    return settingsView();
-  }
+export function createAdminApi({ registry, session, config, logger, backups, gateway, fx, telemetry }) {
+  const settingsService = createSettingsService({ registry, config, logger, fx, telemetry });
+  const settingsView = settingsService.view;
 
   // Computes p50/p95 latency per model and provider from recent successful attempts.
   function latencyReport(hours = 24) {
@@ -216,6 +107,20 @@ export function createAdminApi({ registry, session, config, logger, backups, gat
     }
     const data = Array.isArray(parsed?.data) ? parsed.data : [];
     return data.filter((item) => item && typeof item.id === 'string').slice(0, 2000).map((item) => ({ id: item.id }));
+  }
+
+  // Returns the model ids that currently route through a provider.
+  function modelsForProvider(providerId) {
+    const affected = new Set();
+    for (const [modelId, routes] of registry.routesByModel) {
+      if (routes.some((route) => route.providerId === providerId)) affected.add(modelId);
+    }
+    return affected;
+  }
+
+  // Invalidates cached responses for every model using a provider.
+  function invalidateProviderModels(providerId) {
+    for (const modelId of modelsForProvider(providerId)) gateway.responseCache.invalidateModel(modelId);
   }
 
   // Dispatches admin API requests under /api/v1.
@@ -301,6 +206,31 @@ export function createAdminApi({ registry, session, config, logger, backups, gat
       }));
       return envelopeSuccess({ models });
     }
+    if (path === '/model-info' && method === 'GET') {
+      const currency = String(registry.setting('billing_currency', config.billingCurrency)).toUpperCase();
+      const models = registry.listModels().map((model) => ({
+        model_name: model.name,
+        downstream: {
+          input_cost_per_million: model.downstreamInputCostPerM,
+          output_cost_per_million: model.downstreamOutputCostPerM,
+          cached_input_cost_per_million: model.downstreamCachedInputCostPerM,
+          currency: model.downstreamCurrency ?? currency,
+        },
+        routes: model.routes.map((route) => {
+          const costs = resolveRouteCost(route);
+          return {
+            id: route.id,
+            upstream_model: route.upstreamModel,
+            input_cost_per_million: route.inputCostPerM,
+            output_cost_per_million: route.outputCostPerM,
+            resolved_input_cost_per_million: costs.input,
+            resolved_output_cost_per_million: costs.output,
+            pricing_source: costs.source,
+          };
+        }),
+      }));
+      return envelopeSuccess({ models, currency });
+    }
     if (path === '/models' && method === 'POST') {
       return mutate(request, { action: 'model.create', resourceType: 'model', actor, ip: requestIp, status: 201 },
         async () => registry.createModel(await readJson(request, config, registry)));
@@ -320,6 +250,7 @@ export function createAdminApi({ registry, session, config, logger, backups, gat
           const id = Number(match[1]);
           registry.softDeleteModel(id);
           gateway.responseCache.invalidateModel(id);
+          gateway.pins.clearModel(id);
           return { id };
         });
     }
@@ -344,18 +275,23 @@ export function createAdminApi({ registry, session, config, logger, backups, gat
     match = /^\/providers\/(\d+)$/.exec(path);
     if (match && method === 'PATCH') {
       return mutate(request, { action: 'provider.update', resourceType: 'provider', resourceId: () => Number(match[1]), actor, ip: requestIp },
-        async () => registry.updateProvider(Number(match[1]), await readJson(request, config, registry)));
+        async () => {
+          const id = Number(match[1]);
+          const provider = registry.updateProvider(id, await readJson(request, config, registry));
+          invalidateProviderModels(id);
+          return provider;
+        });
     }
     if (match && method === 'DELETE') {
       return mutate(request, { action: 'provider.delete', resourceType: 'provider', resourceId: () => Number(match[1]), actor, ip: requestIp },
         async () => {
           const id = Number(match[1]);
-          const affected = new Set();
-          for (const [modelId, routes] of registry.routesByModel) {
-            if (routes.some((route) => route.providerId === id)) affected.add(modelId);
-          }
+          const affected = modelsForProvider(id);
           registry.softDeleteProvider(id);
-          for (const modelId of affected) gateway.responseCache.invalidateModel(modelId);
+          for (const modelId of affected) {
+            gateway.responseCache.invalidateModel(modelId);
+            gateway.pins.clearModel(modelId);
+          }
           return { id };
         });
     }
@@ -396,7 +332,10 @@ export function createAdminApi({ registry, session, config, logger, backups, gat
           const id = Number(match[1]);
           const existing = registry.routeByIdOrNull(id);
           registry.softDeleteRoute(id);
-          if (existing) gateway.responseCache.invalidateModel(existing.modelId);
+          if (existing) {
+            gateway.responseCache.invalidateModel(existing.modelId);
+            gateway.pins.clearRoute(id);
+          }
           return { id };
         });
     }
@@ -405,9 +344,20 @@ export function createAdminApi({ registry, session, config, logger, backups, gat
       const ratio = registry.setting('budget_warn_ratio', config.budgetWarnRatio);
       const tokens = registry.listTokens().map((token) => {
         const report = registry.tokenBudgetReport(token, ratio);
-        return { ...token, budgetUsage: report.usage, budgetWarnings: report.warnings, budgetRemaining: report.remaining };
+        return {
+          ...token, budgetUsage: report.usage, budgetWarnings: report.warnings,
+          budgetRemaining: report.remaining, budgetRules: report.rules,
+        };
       });
       return envelopeSuccess({ tokens });
+    }
+    match = /^\/tokens\/(\d+)$/.exec(path);
+    if (match && method === 'GET') {
+      const token = registry.findTokenById(Number(match[1]));
+      if (!token) return envelopeError('token not found', 'not_found', 404);
+      const ratio = registry.setting('budget_warn_ratio', config.budgetWarnRatio);
+      const report = registry.tokenBudgetReport(token, ratio);
+      return envelopeSuccess({ token: { ...token, budgetUsage: report.usage, budgetRules: report.rules } });
     }
     if (path === '/tokens' && method === 'POST') {
       return mutate(request, { action: 'token.create', resourceType: 'token', actor, ip: requestIp, status: 201 },
@@ -424,7 +374,12 @@ export function createAdminApi({ registry, session, config, logger, backups, gat
     }
     if (match && method === 'DELETE') {
       return mutate(request, { action: 'token.delete', resourceType: 'token', resourceId: () => Number(match[1]), actor, ip: requestIp },
-        async () => { registry.softDeleteToken(Number(match[1])); return { id: Number(match[1]) }; });
+        async () => {
+          const id = Number(match[1]);
+          registry.softDeleteToken(id);
+          gateway.pins.clearToken(id);
+          return { id };
+        });
     }
     match = /^\/tokens\/(\d+)\/models$/.exec(path);
     if (match && method === 'PUT') {
@@ -434,11 +389,29 @@ export function createAdminApi({ registry, session, config, logger, backups, gat
     }
 
     if (path === '/usage' && method === 'GET') {
+      const clauses = ["entity = 'model'"];
+      const params = [];
+      if (url.searchParams.get('windowStart')) {
+        clauses.push('window_start = ?');
+        params.push(Number(url.searchParams.get('windowStart')));
+      }
+      const currencySummary = registry.db.prepare(`SELECT currency,
+          COALESCE(SUM(requests), 0) AS requests,
+          COALESCE(SUM(tokens_in), 0) AS tokens_in,
+          COALESCE(SUM(tokens_out), 0) AS tokens_out,
+          COALESCE(SUM(cost), 0) AS cost,
+          COALESCE(SUM(upstream_cost), 0) AS upstream_cost,
+          COALESCE(SUM(downstream_cost), 0) AS downstream_cost,
+          CASE WHEN SUM(CASE WHEN currency <> 'USD' AND (fx_rate IS NULL OR fx_rate <= 0) THEN 1 ELSE 0 END) > 0 THEN NULL
+            ELSE COALESCE(SUM(downstream_cost - COALESCE(upstream_cost, cost) * COALESCE(fx_rate, 1)), 0)
+          END AS margin
+        FROM usage WHERE ${clauses.join(' AND ')} GROUP BY currency ORDER BY currency`).all(...params);
       return envelopeSuccess({
         usage: registry.usageReport({
           entity: url.searchParams.get('entity'),
           windowStart: url.searchParams.get('windowStart'),
         }),
+        currencySummary,
         cacheStats: cacheReport(),
         latency: latencyReport(),
       });
@@ -455,7 +428,7 @@ export function createAdminApi({ registry, session, config, logger, backups, gat
     if (path === '/settings' && method === 'PUT') {
       return mutate(request, { action: 'settings.update', resourceType: 'settings', actor, ip: requestIp },
         async () => {
-          updateSettings(await readJson(request, config, registry));
+          await settingsService.update(await readJson(request, config, registry));
           return { settings: settingsView(), cacheEntries: gateway.responseCache.size };
         });
     }
