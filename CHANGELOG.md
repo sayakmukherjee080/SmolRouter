@@ -2,6 +2,21 @@
 
 All notable changes are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-11-08
+
+### Changed
+
+- Renamed the product and repository from SmolOrchestrator to SmolRouter.
+- Renamed the npm package to `smolrouter`, the Postman collection to `smolrouter.postman_collection.json`, the logo asset to `smolrouter_logo.png`, and the config download prefix to `smolrouter-config-`.
+- Renamed the provider response header from `X-Smolorchestrator-Provider` to `X-SmolRouter-Provider`, the outbound user-agent to `smolrouter/2.0`, the Prometheus metric prefix to `smolrouter_*`, and the `/v1/models` owner to `smolrouter`.
+- Updated the admin UI, docs, and setup output to use the new name.
+- The logo image, visual style, and other branding elements are unchanged.
+
+### Breaking
+
+- Clients that read the old `X-Smolorchestrator-Provider` header must use `X-SmolRouter-Provider`.
+- Dashboards and alerts that query `smolorchestrator_*` Prometheus metrics must use `smolrouter_*`.
+
 ## [2.1.0] - 2026-11-08
 
 ### Added

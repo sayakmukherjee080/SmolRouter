@@ -18,7 +18,7 @@ export function createProbeRunner({ registry, config, telemetry, metrics, fx }) 
         headers: {
           'content-type': 'application/json',
           authorization: `Bearer ${key.key}`,
-          'user-agent': 'smolorchestrator/2.0',
+          'user-agent': 'smolrouter/2.0',
         },
         body: JSON.stringify({
           model: route.upstreamModel,

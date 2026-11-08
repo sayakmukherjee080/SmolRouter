@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/smolorchestrator_logo.png" width="150" alt="SmolOrchestrator">
+  <img src="assets/smolrouter_logo.png" width="150" alt="SmolRouter">
 </p>
 
-# SmolOrchestrator
+# SmolRouter
 
 Self-hosted OpenAI-compatible gateway. One Node process, one SQLite database, one admin UI.
 
@@ -12,7 +12,7 @@ Self-hosted OpenAI-compatible gateway. One Node process, one SQLite database, on
 
 ## Overview
 
-SmolOrchestrator sits between OpenAI-compatible clients and one or more upstream providers. Clients authenticate with a gateway key scoped to specific model aliases. The gateway handles routing, key pools, failover, TPS-aware routing, caching, budgets, and telemetry.
+SmolRouter sits between OpenAI-compatible clients and one or more upstream providers. Clients authenticate with a gateway key scoped to specific model aliases. The gateway handles routing, key pools, failover, TPS-aware routing, caching, budgets, and telemetry.
 
 There are no runtime npm dependencies, no database server, and no build step. Node 22.13 or newer is required for `node:sqlite`.
 
@@ -50,7 +50,7 @@ curl http://127.0.0.1:8787/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "your-model-alias",
-    "messages": [{ "role": "user", "content": "Hello via SmolOrchestrator." }],
+    "messages": [{ "role": "user", "content": "Hello via SmolRouter." }],
     "stream": true
   }'
 ```
@@ -73,7 +73,7 @@ See [Installation](docs/installation.md) for setup details, reverse proxies, upg
 | [Development](docs/development.md) | Tests, layout, migrations, contribution rules. |
 | [Changelog](CHANGELOG.md) | Release history. |
 
-Every environment variable is documented in [`.env.example`](.env.example). The Postman collection is at [`postman/smolorchestrator.postman_collection.json`](postman/smolorchestrator.postman_collection.json).
+Every environment variable is documented in [`.env.example`](.env.example). The Postman collection is at [`postman/smolrouter.postman_collection.json`](postman/smolrouter.postman_collection.json).
 
 ## Security and privacy
 
@@ -102,4 +102,4 @@ Tests use temporary SQLite databases and stub upstreams; no live provider is req
 
 ## License
 
-SmolOrchestrator is licensed under the GNU Affero General Public License v3 (AGPL-3.0). See [LICENSE](LICENSE).
+SmolRouter is licensed under the GNU Affero General Public License v3 (AGPL-3.0). See [LICENSE](LICENSE).

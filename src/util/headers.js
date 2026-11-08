@@ -47,7 +47,7 @@ export function buildUpstreamRequestHeaders(request, upstreamKey) {
   headers.set('accept', request.headers.get('accept')?.includes('text/event-stream')
     ? 'text/event-stream'
     : 'application/json');
-  headers.set('user-agent', 'smolorchestrator/2.0');
+  headers.set('user-agent', 'smolrouter/2.0');
   return headers;
 }
 

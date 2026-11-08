@@ -6,7 +6,7 @@ export function modelEntry(model) {
     id: model.name,
     object: 'model',
     created: Math.floor(Date.now() / 1000),
-    owned_by: 'smolorchestrator',
+    owned_by: 'smolrouter',
   };
 }
 

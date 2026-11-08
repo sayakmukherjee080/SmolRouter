@@ -146,7 +146,7 @@ export function createAdminApi({ registry, session, config, logger, backups, gat
     const key = registry.peekProviderKey(provider.id);
     if (!key) throw new ValidationError('provider has no usable key');
     const response = await fetch(`${provider.baseUrl.replace(/\/+$/, '')}/models`, {
-      headers: { authorization: `Bearer ${key.key}`, 'user-agent': 'smolorchestrator/2.0' },
+      headers: { authorization: `Bearer ${key.key}`, 'user-agent': 'smolrouter/2.0' },
       signal: AbortSignal.timeout(config.idleTimeoutMs),
     });
     if (!response.ok) throw new ValidationError(`upstream returned ${response.status}`);

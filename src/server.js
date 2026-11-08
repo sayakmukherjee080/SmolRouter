@@ -155,15 +155,15 @@ async function main() {
   try {
     config = loadConfig();
   } catch (error) {
-    console.error(`[smolorchestrator] ${error.message}`);
+    console.error(`[smolrouter] ${error.message}`);
     process.exit(1);
   }
   if (!fs.existsSync(path.join(config.storagePath, 'install.lock'))) {
-    console.error('[smolorchestrator] Instance is not initialized. Run: npm run setup');
+    console.error('[smolrouter] Instance is not initialized. Run: npm run setup');
     process.exit(1);
   }
   if (!fs.existsSync(config.dbPath)) {
-    console.error(`[smolorchestrator] Database missing at ${config.dbPath}. Re-run: npm run setup`);
+    console.error(`[smolrouter] Database missing at ${config.dbPath}. Re-run: npm run setup`);
     process.exit(1);
   }
   const logger = createLogger(config);
@@ -229,7 +229,7 @@ async function main() {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((error) => {
-    console.error(`[smolorchestrator] fatal: ${error.message}`);
+    console.error(`[smolrouter] fatal: ${error.message}`);
     process.exit(1);
   });
 }

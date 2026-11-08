@@ -64,7 +64,7 @@ export function createResponseHandler({ registry, config, telemetry, logger, met
         abandon?.();
       }
       const headers = buildClientResponseHeaders(upstream);
-      headers.set('x-smolorchestrator-provider', provider.name);
+      headers.set('x-smolrouter-provider', provider.name);
       headers.set('x-cache', 'miss');
       return {
         outcome: 'success',
@@ -83,7 +83,7 @@ export function createResponseHandler({ registry, config, telemetry, logger, met
     }
 
     const headers = buildClientResponseHeaders(upstream);
-    headers.set('x-smolorchestrator-provider', provider.name);
+    headers.set('x-smolrouter-provider', provider.name);
     let body = null;
     if (upstream.body) {
       const [clientStream, parseStream] = upstream.body.tee();

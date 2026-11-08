@@ -36,12 +36,12 @@ test('metrics endpoint exposes counters and route health', async (t) => {
   assert.equal(response.status, 200);
   assert.match(response.headers.get('content-type'), /text\/plain/);
   const text = await response.text();
-  assert.match(text, /smolorchestrator_up 1/);
-  assert.match(text, /smolorchestrator_requests_total\{model="metered",provider="stub",outcome="success"\} 1/);
-  assert.match(text, /smolorchestrator_tokens_total\{model="metered",direction="input"\} 10/);
-  assert.match(text, /smolorchestrator_tokens_total\{model="metered",direction="output"\} 5/);
-  assert.match(text, /smolorchestrator_estimated_cost_usd_total\{model="metered"\} 0.00002/);
-  assert.match(text, /smolorchestrator_route_healthy\{model="metered",provider="stub"\} 1/);
+  assert.match(text, /smolrouter_up 1/);
+  assert.match(text, /smolrouter_requests_total\{model="metered",provider="stub",outcome="success"\} 1/);
+  assert.match(text, /smolrouter_tokens_total\{model="metered",direction="input"\} 10/);
+  assert.match(text, /smolrouter_tokens_total\{model="metered",direction="output"\} 5/);
+  assert.match(text, /smolrouter_estimated_cost_usd_total\{model="metered"\} 0.00002/);
+  assert.match(text, /smolrouter_route_healthy\{model="metered",provider="stub"\} 1/);
 });
 
 test('metrics endpoint honours METRICS_TOKEN when configured', async (t) => {

@@ -120,7 +120,7 @@ export async function main() {
   const dbPath = path.resolve(process.env.DB_PATH || path.join(storagePath, 'gateway.db'));
   const lockPath = path.join(storagePath, 'install.lock');
 
-  console.log('SmolOrchestrator setup');
+  console.log('SmolRouter setup');
   console.log('=======================');
   if (fs.existsSync(lockPath)) {
     console.log(`Already installed (${lockPath} exists).`);

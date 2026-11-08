@@ -31,7 +31,7 @@ test('response cache serves identical temperature=0 requests without upstream sp
   const first = await complete(app.baseUrl, raw);
   assert.equal(first.response.status, 200);
   assert.equal(first.response.headers.get('x-cache'), 'miss');
-  assert.equal(first.response.headers.get('x-smolorchestrator-provider'), 'stub');
+  assert.equal(first.response.headers.get('x-smolrouter-provider'), 'stub');
   assert.ok(Number(first.response.headers.get('x-request-cost')) > 0, 'cost header on captured response');
 
   const second = await complete(app.baseUrl, raw);

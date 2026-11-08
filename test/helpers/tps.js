@@ -15,7 +15,7 @@ export async function chat(baseUrl, raw, model, { stream = false } = {}) {
     }),
   });
   const text = await response.text();
-  return { status: response.status, text, provider: response.headers.get('x-smolorchestrator-provider') };
+  return { status: response.status, text, provider: response.headers.get('x-smolrouter-provider') };
 }
 
 // Builds one valid or invalid TPS sample.

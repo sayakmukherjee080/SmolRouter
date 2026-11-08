@@ -15,6 +15,6 @@
 - [README](../README.md)
 - [Contributing](../CONTRIBUTING.md)
 - [Changelog](../CHANGELOG.md)
-- [Postman collection](../postman/smolorchestrator.postman_collection.json)
+- [Postman collection](../postman/smolrouter.postman_collection.json)
 - [Environment variables](../.env.example)
 - [License](../LICENSE)

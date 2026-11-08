@@ -30,88 +30,88 @@ export function createMetrics() {
 
   // Records one upstream attempt outcome.
   function recordAttempt({ model, provider, outcome }) {
-    increment('smolorchestrator_requests_total', { model, provider, outcome });
+    increment('smolrouter_requests_total', { model, provider, outcome });
   }
 
   // Records observed token usage, cached tokens, and estimated cost/savings.
   function recordUsage({ model, inputTokens = 0, outputTokens = 0, cachedTokens = 0, cost = 0, savedCost = 0 }) {
-    increment('smolorchestrator_tokens_total', { model, direction: 'input' }, inputTokens);
-    increment('smolorchestrator_tokens_total', { model, direction: 'output' }, outputTokens);
-    increment('smolorchestrator_cached_tokens_total', { model }, cachedTokens);
-    increment('smolorchestrator_estimated_cost_usd_total', { model }, cost);
-    increment('smolorchestrator_provider_cache_saved_usd_total', { model }, savedCost);
+    increment('smolrouter_tokens_total', { model, direction: 'input' }, inputTokens);
+    increment('smolrouter_tokens_total', { model, direction: 'output' }, outputTokens);
+    increment('smolrouter_cached_tokens_total', { model }, cachedTokens);
+    increment('smolrouter_estimated_cost_usd_total', { model }, cost);
+    increment('smolrouter_provider_cache_saved_usd_total', { model }, savedCost);
   }
 
   // Records a response-cache decision and its estimated savings.
   function recordCache({ model, outcome, savedCost = 0 }) {
-    if (outcome === 'hit') increment('smolorchestrator_cache_hits_total', { model });
-    else if (outcome === 'coalesced') increment('smolorchestrator_cache_coalesced_total', { model });
-    else increment('smolorchestrator_cache_misses_total', { model });
-    increment('smolorchestrator_cache_saved_usd_total', { model }, savedCost);
+    if (outcome === 'hit') increment('smolrouter_cache_hits_total', { model });
+    else if (outcome === 'coalesced') increment('smolrouter_cache_coalesced_total', { model });
+    else increment('smolrouter_cache_misses_total', { model });
+    increment('smolrouter_cache_saved_usd_total', { model }, savedCost);
   }
 
   // Records a probe result.
   function recordProbe({ model, provider, ok }) {
-    increment('smolorchestrator_probes_total', { model, provider, outcome: ok ? 'success' : 'failure' });
+    increment('smolrouter_probes_total', { model, provider, outcome: ok ? 'success' : 'failure' });
   }
 
   // Records a request rejected because a token budget was exhausted.
   function recordBudgetRejection() {
-    increment('smolorchestrator_budget_rejections_total', {});
+    increment('smolrouter_budget_rejections_total', {});
   }
 
   // Renders the current snapshot in Prometheus text exposition format.
   function render(registry) {
     const lines = [
-      '# HELP smolorchestrator_up Whether the gateway process is running.',
-      '# TYPE smolorchestrator_up gauge',
-      'smolorchestrator_up 1',
-      '# HELP smolorchestrator_uptime_seconds Process uptime in seconds.',
-      '# TYPE smolorchestrator_uptime_seconds gauge',
-      `smolorchestrator_uptime_seconds ${Math.floor((Date.now() - startedAt) / 1000)}`,
-      '# HELP smolorchestrator_requests_total Upstream attempts by model, provider, and outcome.',
-      '# TYPE smolorchestrator_requests_total counter',
+      '# HELP smolrouter_up Whether the gateway process is running.',
+      '# TYPE smolrouter_up gauge',
+      'smolrouter_up 1',
+      '# HELP smolrouter_uptime_seconds Process uptime in seconds.',
+      '# TYPE smolrouter_uptime_seconds gauge',
+      `smolrouter_uptime_seconds ${Math.floor((Date.now() - startedAt) / 1000)}`,
+      '# HELP smolrouter_requests_total Upstream attempts by model, provider, and outcome.',
+      '# TYPE smolrouter_requests_total counter',
     ];
     const counterLines = [];
     for (const [series, value] of counters) {
-      if (series.startsWith('smolorchestrator_requests_total')) counterLines.push(`${series} ${value}`);
+      if (series.startsWith('smolrouter_requests_total')) counterLines.push(`${series} ${value}`);
     }
     lines.push(...counterLines);
     lines.push(
-      '# HELP smolorchestrator_tokens_total Observed tokens by model and direction.',
-      '# TYPE smolorchestrator_tokens_total counter',
+      '# HELP smolrouter_tokens_total Observed tokens by model and direction.',
+      '# TYPE smolrouter_tokens_total counter',
     );
     for (const [series, value] of counters) {
-      if (series.startsWith('smolorchestrator_tokens_total')) lines.push(`${series} ${value}`);
+      if (series.startsWith('smolrouter_tokens_total')) lines.push(`${series} ${value}`);
     }
     lines.push(
-      '# HELP smolorchestrator_estimated_cost_usd_total Estimated upstream cost in USD.',
-      '# TYPE smolorchestrator_estimated_cost_usd_total counter',
+      '# HELP smolrouter_estimated_cost_usd_total Estimated upstream cost in USD.',
+      '# TYPE smolrouter_estimated_cost_usd_total counter',
     );
     for (const [series, value] of counters) {
-      if (series.startsWith('smolorchestrator_estimated_cost_usd_total')) lines.push(`${series} ${value}`);
+      if (series.startsWith('smolrouter_estimated_cost_usd_total')) lines.push(`${series} ${value}`);
     }
     lines.push(
-      '# HELP smolorchestrator_probes_total Probe results by model, provider, and outcome.',
-      '# TYPE smolorchestrator_probes_total counter',
+      '# HELP smolrouter_probes_total Probe results by model, provider, and outcome.',
+      '# TYPE smolrouter_probes_total counter',
     );
     for (const [series, value] of counters) {
-      if (series.startsWith('smolorchestrator_probes_total')) lines.push(`${series} ${value}`);
+      if (series.startsWith('smolrouter_probes_total')) lines.push(`${series} ${value}`);
     }
     lines.push(
-      '# HELP smolorchestrator_budget_rejections_total Requests rejected by token budgets.',
-      '# TYPE smolorchestrator_budget_rejections_total counter',
+      '# HELP smolrouter_budget_rejections_total Requests rejected by token budgets.',
+      '# TYPE smolrouter_budget_rejections_total counter',
     );
     for (const [series, value] of counters) {
-      if (series.startsWith('smolorchestrator_budget_rejections_total')) lines.push(`${series} ${value}`);
+      if (series.startsWith('smolrouter_budget_rejections_total')) lines.push(`${series} ${value}`);
     }
     for (const family of [
-      ['smolorchestrator_cached_tokens_total', 'Provider-cached input tokens observed.'],
-      ['smolorchestrator_cache_hits_total', 'Exact response-cache hits.'],
-      ['smolorchestrator_cache_misses_total', 'Exact response-cache misses.'],
-      ['smolorchestrator_cache_coalesced_total', 'Requests coalesced by singleflight.'],
-      ['smolorchestrator_cache_saved_usd_total', 'Estimated savings from the response cache.'],
-      ['smolorchestrator_provider_cache_saved_usd_total', 'Estimated savings from provider prompt caching.'],
+      ['smolrouter_cached_tokens_total', 'Provider-cached input tokens observed.'],
+      ['smolrouter_cache_hits_total', 'Exact response-cache hits.'],
+      ['smolrouter_cache_misses_total', 'Exact response-cache misses.'],
+      ['smolrouter_cache_coalesced_total', 'Requests coalesced by singleflight.'],
+      ['smolrouter_cache_saved_usd_total', 'Estimated savings from the response cache.'],
+      ['smolrouter_provider_cache_saved_usd_total', 'Estimated savings from provider prompt caching.'],
     ]) {
       lines.push(`# HELP ${family[0]} ${family[1]}`, `# TYPE ${family[0]} counter`);
       for (const [series, value] of counters) {
@@ -119,15 +119,15 @@ export function createMetrics() {
       }
     }
     lines.push(
-      '# HELP smolorchestrator_route_healthy Whether a route is currently routable (0/1).',
-      '# TYPE smolorchestrator_route_healthy gauge',
+      '# HELP smolrouter_route_healthy Whether a route is currently routable (0/1).',
+      '# TYPE smolrouter_route_healthy gauge',
     );
     const now = Date.now();
     for (const model of registry.modelsById.values()) {
       for (const route of registry.routesForModel(model.id)) {
         const provider = registry.providerById(route.providerId);
         const healthy = isRouteAvailable(registry, route, now) ? 1 : 0;
-        lines.push(`smolorchestrator_route_healthy${labelText({ model: model.name, provider: provider?.name ?? `#${route.providerId}` })} ${healthy}`);
+        lines.push(`smolrouter_route_healthy${labelText({ model: model.name, provider: provider?.name ?? `#${route.providerId}` })} ${healthy}`);
       }
     }
     return `${lines.join('\n')}\n`;

@@ -1,6 +1,6 @@
-# Contributing to SmolOrchestrator
+# Contributing to SmolRouter
 
-Thanks for contributing. SmolOrchestrator is a zero-dependency, single-process Node gateway. Keep changes small, testable, and dependency-free.
+Thanks for contributing. SmolRouter is a zero-dependency, single-process Node gateway. Keep changes small, testable, and dependency-free.
 
 ## Constraints
 

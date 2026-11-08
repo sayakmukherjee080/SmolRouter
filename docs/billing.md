@@ -1,6 +1,6 @@
 # Billing and Budgets
 
-SmolOrchestrator keeps upstream costs and downstream prices separate.
+SmolRouter keeps upstream costs and downstream prices separate.
 
 ## Upstream pricing
 

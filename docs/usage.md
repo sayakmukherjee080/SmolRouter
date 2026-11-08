@@ -1,6 +1,6 @@
 # Usage
 
-SmolOrchestrator exposes an OpenAI-compatible API. Clients authenticate with a gateway key scoped to specific model aliases.
+SmolRouter exposes an OpenAI-compatible API. Clients authenticate with a gateway key scoped to specific model aliases.
 
 ## Client configuration
 
@@ -16,7 +16,7 @@ curl https://your-host/v1/chat/completions \
   -d '{
     "model": "ds-v4.1-flash",
     "messages": [
-      { "role": "user", "content": "Hello via SmolOrchestrator." }
+      { "role": "user", "content": "Hello via SmolRouter." }
     ],
     "stream": true
   }'
@@ -28,7 +28,7 @@ curl https://your-host/v1/chat/completions \
 
 Headers are present when the data is available:
 
-- `X-Smolorchestrator-Provider`: upstream provider name.
+- `X-SmolRouter-Provider`: upstream provider name.
 - `X-Cache`: `hit`, `miss`, `coalesced`, or `bypass`.
 - `X-Request-Cost`, `X-LiteLLM-Response-Cost`: downstream cost for captured non-streaming JSON responses.
 - `X-Budget-Remaining`, `X-Budget-Rules`, `X-Budget-Warning`: budget status for metered keys.

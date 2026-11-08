@@ -1,6 +1,6 @@
 # About
 
-SmolOrchestrator is a self-hosted OpenAI-compatible gateway. It runs as one Node.js process, stores state in SQLite, and serves a browser admin UI.
+SmolRouter is a self-hosted OpenAI-compatible gateway. It runs as one Node.js process, stores state in SQLite, and serves a browser admin UI.
 
 ## Design
 
@@ -51,7 +51,7 @@ Any other `POST /v1/*` path is routed when the JSON body contains a `model` fiel
 
 ## Scope
 
-SmolOrchestrator is not a multi-tenant SaaS control plane, a Kubernetes operator, a horizontally scaled cluster, a prompt archive, a model-hosting runtime, or a replacement for provider-side safety and billing systems.
+SmolRouter is not a multi-tenant SaaS control plane, a Kubernetes operator, a horizontally scaled cluster, a prompt archive, a model-hosting runtime, or a replacement for provider-side safety and billing systems.
 
 ## License
 

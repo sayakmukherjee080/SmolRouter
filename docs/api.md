@@ -2,7 +2,7 @@
 
 The Postman collection is the canonical reference for request and response shapes:
 
-[`postman/smolorchestrator.postman_collection.json`](../postman/smolorchestrator.postman_collection.json)
+[`postman/smolrouter.postman_collection.json`](../postman/smolrouter.postman_collection.json)
 
 ## Versions and envelopes
 

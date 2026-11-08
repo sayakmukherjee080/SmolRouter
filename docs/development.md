@@ -1,6 +1,6 @@
 # Development
 
-SmolOrchestrator is a single-process Node gateway with no runtime dependencies. Keep changes small and tested. See [CONTRIBUTING.md](../CONTRIBUTING.md) for the contribution workflow.
+SmolRouter is a single-process Node gateway with no runtime dependencies. Keep changes small and tested. See [CONTRIBUTING.md](../CONTRIBUTING.md) for the contribution workflow.
 
 ## Constraints
 

@@ -392,7 +392,7 @@ export async function render(main, signal) {
       const blob = new Blob([JSON.stringify(payload.data.bundle, null, 2)], { type: 'application/json' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = `smolorchestrator-config-${new Date().toISOString().slice(0, 10)}.json`;
+      link.download = `smolrouter-config-${new Date().toISOString().slice(0, 10)}.json`;
       link.click();
       URL.revokeObjectURL(link.href);
       toast('Config exported', 'success');

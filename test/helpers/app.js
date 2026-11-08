@@ -17,7 +17,7 @@ export const TEST_PASSWORD = 'test-password-123';
 // Creates a fully composed app on a temp database with a live HTTP server.
 export async function createTestApp({ env = {} } = {}) {
   process.env.NODE_ENV = 'test';
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'smolorchestrator-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'smolrouter-test-'));
   const config = loadConfig({
     APP_SECRET: 'test-secret-'.padEnd(64, 'x'),
     STORAGE_PATH: path.join(dir, 'storage'),

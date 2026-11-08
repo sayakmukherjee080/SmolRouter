@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "SmolOrchestrator",
+    "name": "SmolRouter",
     "description": "Lightweight OpenAI-compatible AI gateway. Gateway endpoints use OpenAI error shapes; admin endpoints use the { success, data } / { success, error, code } envelope. Admin mutations require the X-CSRF-Token header captured by the Login request.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
@@ -117,7 +117,7 @@
               }
             },
             "url": "{{baseUrl}}/v1/chat/completions",
-            "description": "OpenAI-compatible chat proxy. `stream: true` responses are SSE and the gateway injects stream_options.include_usage when absent. Any other POST under /v1/* is routed the same way when the JSON body carries a `model` field. Deterministic requests (temperature 0, non-stream) may be served from the exact response cache; responses carry X-Smolorchestrator-Provider, X-Cache (hit/miss/coalesced), X-Request-Cost when known, and X-Budget-Remaining/X-Budget-Warning headers. 200 passthrough; 400 invalid_json/invalid_request_error/unsupported_feature; 401 invalid_api_key; 404 model_not_found; 413 payload_too_large; 429 rate_limit_exceeded/budget_exceeded; 502 all_providers_failed."
+            "description": "OpenAI-compatible chat proxy. `stream: true` responses are SSE and the gateway injects stream_options.include_usage when absent. Any other POST under /v1/* is routed the same way when the JSON body carries a `model` field. Deterministic requests (temperature 0, non-stream) may be served from the exact response cache; responses carry X-SmolRouter-Provider, X-Cache (hit/miss/coalesced), X-Request-Cost when known, and X-Budget-Remaining/X-Budget-Warning headers. 200 passthrough; 400 invalid_json/invalid_request_error/unsupported_feature; 401 invalid_api_key; 404 model_not_found; 413 payload_too_large; 429 rate_limit_exceeded/budget_exceeded; 502 all_providers_failed."
           }
         },
         {
