@@ -63,6 +63,7 @@ export async function createTestApp({ env = {} } = {}) {
     },
     async close() {
       app.probe.stop();
+      app.tps?.stop();
       await app.telemetry.stop();
       server.closeAllConnections?.();
       await new Promise((resolve) => server.close(resolve));

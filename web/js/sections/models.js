@@ -1,6 +1,6 @@
 // Models section: alias CRUD, balance strategy, and provider route management.
 import { api } from '../api.js';
-import { escapeHtml, toast, openModal, confirmDialog, routeBadge, fmtCost, emptyState } from '../ui.js';
+import { escapeHtml, toast, openModal, confirmDialog, routeBadge, fmtCost, fmtNum, fmtRelative, fmtCountdown, emptyState } from '../ui.js';
 
 // Labels a route cost, flagging auto-priced values from the built-in map.
 function costLabel(route, direction) {
@@ -11,6 +11,38 @@ function costLabel(route, direction) {
     return `${fmtCost(resolved)}/M <span class="badge muted">auto</span>`;
   }
   return '<span class="muted">unknown</span>';
+}
+
+// Formats a TPS value with enough precision for near-floor values.
+function fmtTps(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '—';
+  return num >= 100 ? num.toFixed(0) : num.toFixed(1);
+}
+
+// Renders the TPS-aware routing status for a model card.
+function tpsLabel(model, providerName) {
+  const tps = model.tps;
+  if (!tps?.enabled) return '<span class="badge muted">off</span>';
+  const state = tps.degraded
+    ? '<span class="badge warn"><span class="dot"></span>Degraded</span>'
+    : '<span class="badge ok"><span class="dot"></span>Healthy</span>';
+  const route = (model.routes ?? []).find((item) => item.id === tps.preferred_route_id);
+  const routeLabel = route
+    ? `${escapeHtml(providerName(route.providerId))} · ${escapeHtml(route.upstreamModel)}`
+    : '—';
+  const speed = tps.effective_tps === null || tps.effective_tps === undefined
+    ? '—' : `${fmtTps(tps.effective_tps)} tok/s`;
+  const windowSize = tps.window_size ?? 12;
+  const samples = `${tps.sample_count ?? 0}/${windowSize} samples`;
+  const floor = `floor ${fmtTps(tps.tps_floor)}`;
+  const ttft = tps.max_ttft_ms ? ` · TTFT ≤ ${fmtNum(tps.max_ttft_ms)}ms` : '';
+  const probe = tps.degraded
+    ? (tps.probes_enabled === false
+      ? 'probes paused'
+      : (tps.next_probe_at ? `next probe ${fmtCountdown(tps.next_probe_at)}` : 'probe pending'))
+    : (tps.last_probe_at ? `last probe ${fmtRelative(tps.last_probe_at)}` : '');
+  return `${state} <span class="muted small-label">${routeLabel} · ${speed} · ${samples} · ${floor}${ttft}${probe ? ` · ${probe}` : ''}</span>`;
 }
 
 // Renders one model card with its downstream prices and route table.
@@ -59,10 +91,12 @@ function modelCard(model, providerName, currency) {
           <span class="muted small-label">Cache</span>
         </label>
         <button class="btn ghost small" data-action="route-add" data-model="${model.id}">Add route</button>
+        <button class="btn ghost small" data-action="tps" data-model="${model.id}">TPS</button>
         <button class="btn ghost small" data-action="pricing" data-model="${model.id}">Pricing</button>
         <button class="btn danger small" data-action="model-delete" data-model="${model.id}" data-label="${escapeHtml(model.name)}">Delete</button>
       </div>
       <p class="muted small-label">Downstream: ${downstream}</p>
+      <p class="muted small-label">TPS routing: ${tpsLabel(model, providerName)}</p>
       ${routes.length ? `<div class="table-scroll"><table class="route-table">
         <thead><tr><th>Provider</th><th>Upstream model</th><th>Priority</th><th>Input</th><th>Output</th><th>Capabilities</th><th>Max ctx</th><th>Daily cap</th><th>Status</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
@@ -250,6 +284,92 @@ function pricingModal(model, currency, onDone) {
   });
 }
 
+// Opens the TPS-aware routing dialog for a model.
+function tpsModal(model, providers, onDone) {
+  const routes = model.routes ?? [];
+  const providerName = (id) => providers.find((provider) => provider.id === id)?.name ?? `#${id}`;
+  const currentRoute = routes.find((route) => route.id === model.preferredRouteId);
+  const routeOptions = routes.map((route) =>
+    `<option value="${route.id}"${currentRoute?.id === route.id ? ' selected' : ''}>${escapeHtml(providerName(route.providerId))} · ${escapeHtml(route.upstreamModel)}</option>`).join('');
+  const intervalMinutes = model.tpsProbeIntervalMs ? Math.round(model.tpsProbeIntervalMs / 60000) : '';
+  const tps = model.tps ?? {};
+  const modal = openModal(`
+    <h3>TPS-aware routing: ${escapeHtml(model.name)}</h3>
+    <p class="modal-sub">Keep a preferred route while it sustains the floor. After ${tps.demote_count ?? 10} of ${tps.window_size ?? 12} samples fall below the floor, traffic moves to the next available route. A background coding probe restores the preferred route after three passes.</p>
+    <form id="tps-form" class="stack">
+      <label class="field"><span>Preferred route</span>
+        <select name="preferredRouteId">
+          <option value="">Off</option>
+          ${routeOptions}
+        </select>
+      </label>
+      <div class="form-grid">
+        <label class="field"><span>TPS floor (effective tokens/s)</span><input name="tpsFloor" type="number" min="0.1" step="0.1" value="${model.tpsFloor ?? ''}" placeholder="off"></label>
+        <label class="field"><span>Max content TTFT (ms, optional)</span><input name="tpsMaxTtftMs" type="number" min="1" step="1" value="${model.tpsMaxTtftMs ?? ''}" placeholder="no gate"></label>
+        <label class="field"><span>Probe interval (minutes)</span><input name="tpsProbeIntervalMs" type="number" min="1" max="30" step="1" value="${intervalMinutes}" placeholder="5"></label>
+      </div>
+      <p class="muted small-label">Probes use ${escapeHtml(tps.probe_budget_per_hour ?? 12)} per route per hour. Automatic probes are ${tps.probes_enabled === false ? 'paused in settings' : 'enabled'}; manual probes still run.</p>
+      <p class="form-error hidden" data-error></p>
+      <div class="form-actions">
+        <button type="button" class="btn ghost" data-probe-now>Probe now</button>
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button class="btn primary" type="submit">Save TPS routing</button>
+      </div>
+    </form>`);
+  const form = modal.root.querySelector('form');
+  const errorBox = form.querySelector('[data-error]');
+  modal.root.querySelector('[data-close]').addEventListener('click', modal.close);
+  form.preferredRouteId.addEventListener('change', () => {
+    if (!form.preferredRouteId.value) form.tpsFloor.value = '';
+  });
+  form.querySelector('[data-probe-now]').addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    button.textContent = 'Probing…';
+    try {
+      const result = await api(`/models/${model.id}/tps/probe`, { method: 'POST' });
+      if (!result.probed) {
+        toast(result.reason === 'tps_disabled' ? 'Set a preferred route and floor first' : 'TPS probe unavailable', 'error');
+      } else {
+        toast(result.passed ? 'Probe passed' : 'Probe failed', result.passed ? 'success' : 'error');
+        modal.close();
+        onDone();
+      }
+    } catch (error) {
+      toast(error.message, 'error');
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Probe now';
+    }
+  });
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const preferredRouteId = form.preferredRouteId.value === '' ? null : Number(form.preferredRouteId.value);
+    const tpsFloor = form.tpsFloor.value === '' ? null : Number(form.tpsFloor.value);
+    const ttft = form.tpsMaxTtftMs.value === '' ? null : Number(form.tpsMaxTtftMs.value);
+    const minutes = form.tpsProbeIntervalMs.value === '' ? null : Number(form.tpsProbeIntervalMs.value);
+    if ((tpsFloor !== null || preferredRouteId !== null) && (tpsFloor === null || preferredRouteId === null)) {
+      errorBox.textContent = 'Set both a preferred route and a TPS floor, or clear both to disable.';
+      errorBox.classList.remove('hidden');
+      return;
+    }
+    try {
+      await api(`/models/${model.id}`, { method: 'PATCH', body: {
+        preferredRouteId,
+        tpsFloor,
+        tpsMaxTtftMs: ttft,
+        tpsProbeIntervalMs: minutes === null ? null : Math.round(minutes * 60000),
+      } });
+      modal.close();
+      toast('TPS routing updated', 'success');
+      onDone();
+    } catch (error) {
+      errorBox.textContent = error.message;
+      errorBox.classList.remove('hidden');
+    }
+  });
+}
+
 // Renders the models section and wires its interactions.
 export async function render(main, signal) {
   const [{ models }, { providers }, { settings }] = await Promise.all([api('/models'), api('/providers'), api('/settings')]);
@@ -319,6 +439,10 @@ export async function render(main, signal) {
     }
     if (action === 'pricing') {
       if (model) pricingModal(model, currency, rerender);
+      return;
+    }
+    if (action === 'tps') {
+      if (model) tpsModal(model, providers, rerender);
       return;
     }
     if (action === 'route-add') {

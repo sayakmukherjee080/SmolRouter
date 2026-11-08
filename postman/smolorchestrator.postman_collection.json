@@ -296,7 +296,7 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/v1/models",
-            "description": "200 { success: true, data: { models: [{ id, name, balanceStrategy, routes: [...] }] } }."
+            "description": "200 { success: true, data: { models: [{ id, name, balanceStrategy, routes: [...], tps: { enabled, degraded, effective_tps, tps_floor, sample_count, next_probe_at, probes_enabled } }] } }."
           }
         },
         {
@@ -323,7 +323,7 @@
               }
             },
             "url": "{{baseUrl}}/api/v1/models",
-            "description": "201 { success: true, data: { id, name, balanceStrategy } }. balanceStrategy is round_robin, least_used, or cache_aware. 422 validation_error (invalid name or strategy, duplicate name)."
+            "description": "201 { success: true, data: { id, name, balanceStrategy } }. balanceStrategy is round_robin, least_used, or cache_aware. Optional TPS fields tpsFloor, tpsProbeIntervalMs, and tpsMaxTtftMs may be set at create time; preferredRouteId requires routes, so set it with Update model after adding a route. 422 validation_error (invalid name, strategy, or TPS values, duplicate name)."
           }
         },
         {
@@ -342,7 +342,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"balanceStrategy\": \"least_used\"\n}",
+              "raw": "{\n  \"balanceStrategy\": \"least_used\",\n  \"tpsFloor\": 60,\n  \"preferredRouteId\": 1,\n  \"tpsProbeIntervalMs\": 300000,\n  \"tpsMaxTtftMs\": 8000\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -350,7 +350,7 @@
               }
             },
             "url": "{{baseUrl}}/api/v1/models/{{modelId}}",
-            "description": "200 { success: true, data: model }. Accepts name, balanceStrategy (round_robin, least_used, cache_aware), and cacheEnabled (exact response cache for temperature=0 requests)."
+            "description": "200 { success: true, data: model }. Accepts name, balanceStrategy (round_robin, least_used, cache_aware), cacheEnabled, downstream prices, and TPS routing: tpsFloor (positive effective tokens/s or null), preferredRouteId (an active route of this model or null), tpsProbeIntervalMs (60000-1800000 or null), and tpsMaxTtftMs (positive int or null). TPS is active only when both tpsFloor and preferredRouteId are set. 422 validation_error on invalid values or a preferred route from another model."
           }
         },
         {
@@ -365,6 +365,20 @@
             ],
             "url": "{{baseUrl}}/api/v1/models/{{modelId}}",
             "description": "200 { success: true, data: { id } }. Soft-deletes the model and its routes."
+          }
+        },
+        {
+          "name": "Probe TPS now",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/models/{{modelId}}/tps/probe",
+            "description": "200 { success: true, data: { probed, passed, tps } }. Runs one real recovery probe even when automatic probes are paused. Requires a preferred route and a TPS floor."
           }
         },
         {
@@ -426,7 +440,7 @@
               }
             },
             "url": "{{baseUrl}}/api/v1/routes/{{routeId}}",
-            "description": "200 { success: true, data: route }. Any subset of providerId, upstreamModel, priority, inputCostPerM, outputCostPerM, dailyQuota."
+            "description": "200 { success: true, data: route }. Any subset of providerId, upstreamModel, priority, inputCostPerM, outputCostPerM, dailyQuota. Changing providerId or upstreamModel resets this route's TPS history."
           }
         },
         {
@@ -502,7 +516,7 @@
               }
             },
             "url": "{{baseUrl}}/api/v1/providers/{{providerId}}",
-            "description": "200 { success: true, data: provider }. Accepts name and/or baseUrl."
+            "description": "200 { success: true, data: provider }. Accepts name and/or baseUrl. Changing baseUrl resets TPS history for every route using this provider."
           }
         },
         {
@@ -703,7 +717,7 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/v1/usage?entity=model",
-            "description": "200 { success: true, data: { usage: [{ entity, entity_id, window_start, requests, tokens_in, tokens_out, cached_tokens, cost, upstream_cost, downstream_cost, currency, fx_rate, saved_cost }], currencySummary: [{ currency, requests, tokens_in, tokens_out, cost, upstream_cost, downstream_cost, margin }], cacheStats: [{ model, hits, misses, coalesced, saved_cost, saved_tokens_in, saved_tokens_out }], latency: [{ model, provider, requests, p50, p95 }] } }. cost is the upstream estimate in USD; upstream_cost is provider-reported USD when supplied; downstream_cost is the admin-set client charge in that row's currency; fx_rate is the weighted USD-to-currency rate stored with the row. currencySummary groups model rows by currency so mixed-currency margins never blend. Optional filters: entity (model|token|provider|route), windowStart (epoch ms)."
+            "description": "200 { success: true, data: { usage: [{ entity, entity_id, window_start, requests, tokens_in, tokens_out, cached_tokens, cost, upstream_cost, downstream_cost, currency, fx_rate, saved_cost }], currencySummary: [{ currency, requests, tokens_in, tokens_out, cost, upstream_cost, downstream_cost, margin }], cacheStats: [{ model, hits, misses, coalesced, saved_cost, saved_tokens_in, saved_tokens_out }], latency: [{ model, provider, requests, p50, p95 }], tps: [{ model, provider, routeId, upstreamModel, samples, effectiveTps, ttftMs, contentTps, responseTokens, lastAt }] } }. cost is the upstream estimate in USD; upstream_cost is provider-reported USD when supplied; downstream_cost is the admin-set client charge in that row's currency; fx_rate is the weighted USD-to-currency rate stored with the row. currencySummary groups model rows by currency so mixed-currency margins never blend. Optional filters: entity (model|token|provider|route), windowStart (epoch ms)."
           }
         },
         {
@@ -711,7 +725,7 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/v1/telemetry?limit=100&offset=0",
-            "description": "200 { success: true, data: { telemetry: [{ ts, token_id, model_id, route_id, attempt, status, latency_ms, input_tokens, output_tokens, cached_tokens, est_cost, upstream_cost, downstream_cost, currency, fx_rate, bytes, estimated, is_probe, error }] } }. No prompt or completion content is stored."
+            "description": "200 { success: true, data: { telemetry: [{ ts, token_id, model_id, route_id, attempt, status, latency_ms, input_tokens, output_tokens, cached_tokens, est_cost, upstream_cost, downstream_cost, currency, fx_rate, bytes, estimated, is_probe, error, response_tokens, response_ttft_ms, response_generation_ms, effective_tps, response_tps }] } }. No prompt or completion content is stored."
           }
         },
         {

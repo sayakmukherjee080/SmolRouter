@@ -20,8 +20,9 @@ export class Telemetry {
     this.insertEvent = this.db.prepare(`INSERT INTO telemetry
       (ts, token_id, model_id, route_id, provider_key_id, attempt, status, latency_ms,
        input_tokens, output_tokens, cached_tokens, est_cost, saved_cost, bytes, estimated, is_probe, error,
-       upstream_cost, downstream_cost, currency, fx_rate)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+       upstream_cost, downstream_cost, currency, fx_rate,
+       response_tokens, response_ttft_ms, response_generation_ms, effective_tps, response_tps)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     this.insertAudit = this.db.prepare(`INSERT INTO audit
       (ts, actor, action, resource_type, resource_id, ip, outcome, details)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
@@ -133,6 +134,8 @@ export class Telemetry {
           event.estCost ?? 0, event.savedCost ?? 0, event.bytes ?? 0,
           event.estimated ? 1 : 0, event.isProbe ? 1 : 0, event.error ?? null,
           event.upstreamCost ?? null, event.downstreamCost ?? 0, currency, event.fxRate ?? null,
+          event.responseTokens ?? null, event.responseTtftMs ?? null, event.responseGenerationMs ?? null,
+          event.effectiveTps ?? null, event.responseTps ?? null,
         );
         this.accumulateUsage(usage, event, currency);
         if (event.tokenId && !event.isProbe && event.status >= 200 && event.status < 400) {

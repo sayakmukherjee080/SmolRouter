@@ -1,6 +1,7 @@
 // Loads and validates runtime configuration from environment variables.
 import fs from 'node:fs';
 import path from 'node:path';
+import { TPS_DEFAULT_PROBE_INTERVAL_MS, TPS_MAX_PROBE_INTERVAL_MS, TPS_MIN_PROBE_INTERVAL_MS } from './tps_limits.js';
 
 const TRUTHY = new Set(['1', 'true', 'yes', 'on']);
 
@@ -72,6 +73,10 @@ export function loadConfig(env = process.env) {
     probeMaxTokens: readNumber(env, 'PROBE_MAX_TOKENS', 5, { min: 1 }),
     healthCheckEnabled: readBoolean(env, 'HEALTH_CHECK_ENABLED', true),
     healthCheckIntervalMs: readNumber(env, 'HEALTH_CHECK_INTERVAL_MS', 900000, { min: 1000 }),
+    tpsProbeIntervalMs: readNumber(env, 'TPS_PROBE_INTERVAL_MS', TPS_DEFAULT_PROBE_INTERVAL_MS, { min: TPS_MIN_PROBE_INTERVAL_MS, max: TPS_MAX_PROBE_INTERVAL_MS }),
+    tpsProbeTimeoutMs: readNumber(env, 'TPS_PROBE_TIMEOUT_MS', 180000, { min: 10000, max: 600000 }),
+    tpsProbeMaxTokens: readNumber(env, 'TPS_PROBE_MAX_TOKENS', 3000, { min: 100, max: 8000 }),
+    tpsProbePrompt: env.TPS_PROBE_PROMPT || 'Write complete Python code for a binary search, a merge of two sorted lists, and a simple LRU cache. Include type hints and brief docstrings. Return code only.',
     metricsToken: env.METRICS_TOKEN || '',
     responseCacheEnabled: readBoolean(env, 'RESPONSE_CACHE_ENABLED', true),
     responseCacheTtlMs: readNumber(env, 'RESPONSE_CACHE_TTL_MS', 300000, { min: 1000 }),

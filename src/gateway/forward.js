@@ -3,7 +3,7 @@ import { readBodyCapped, parseJsonBody, openAiError } from '../util/body.js';
 import { buildUpstreamRequestHeaders, clientIp } from '../util/headers.js';
 import { authenticate, canAccessModel } from './auth.js';
 import { IpRateLimiter } from './ratelimit.js';
-import { pickRoute } from './balance.js';
+import { pickRoute, isRouteAvailable } from './balance.js';
 import { pickKey, disableKey } from './pools.js';
 import { applyFailure } from './cooldown.js';
 import { PinStore, resolvePin, assignPin } from './pins.js';
@@ -14,6 +14,7 @@ import { applyBudgetHeaders, applyCostHeaders } from './billing_headers.js';
 import { createInfo } from './info.js';
 import { createProbeRunner } from './probe_runner.js';
 import { createResponseHandler } from './response.js';
+import { createTpsController } from './tps.js';
 import {
   resolveDownstreamPrices, computeDownstreamCost,
   maxDownstreamEstimate, hasDownstreamPrices,
@@ -25,7 +26,9 @@ const FAILOVER_STATUSES = new Set([404, 408, 409, 425, 429, 500, 502, 503, 504, 
 const AUTH_STATUSES = new Set([401, 403]);
 
 // Creates the gateway facade with proxy, model listing, pricing, and probe entry points.
-export function createGateway({ registry, config, telemetry, logger, metrics, fx, onRouteStateChange }) {
+export function createGateway({
+  registry, config, telemetry, logger, metrics, fx, onRouteStateChange, fetchImpl = fetch,
+}) {
   const limiter = new IpRateLimiter({ limit: config.ipRateLimit, windowMs: config.ipRateWindowMs });
   const pins = new PinStore();
   const responseCache = new ResponseCache({
@@ -35,7 +38,11 @@ export function createGateway({ registry, config, telemetry, logger, metrics, fx
   });
   const singleFlight = new SingleFlight();
   const info = createInfo({ registry, config, fx });
-  const responseHandler = createResponseHandler({ registry, config, telemetry, logger, metrics, onRouteStateChange });
+  const tps = createTpsController({
+    registry, config, telemetry, logger, metrics, fetchImpl,
+    onStateChange: (modelId) => pins.clearModel(modelId),
+  });
+  const responseHandler = createResponseHandler({ registry, config, telemetry, logger, metrics, tps, onRouteStateChange });
   const { runProbe } = createProbeRunner({ registry, config, telemetry, metrics, fx });
 
   // Returns whether the exact response cache may serve this model.
@@ -318,6 +325,8 @@ export function createGateway({ registry, config, telemetry, logger, metrics, fx
     const keyFailures = new Map();
     const errors = [];
     const cacheAware = model.balanceStrategy === 'cache_aware';
+    const tpsAware = tps.enabledFor(model);
+    const preferred = tpsAware ? tps.preferredRoute(model) : null;
     const maxAttempts = registry.setting('max_attempts', config.maxAttempts);
     const keyRetries = registry.setting('key_retries_per_route', config.keyRetriesPerRoute);
     let attempt = 0;
@@ -333,7 +342,31 @@ export function createGateway({ registry, config, telemetry, logger, metrics, fx
       const now = Date.now();
       let route;
       let key;
-      if (cacheAware) {
+      if (tpsAware) {
+        const preferredUsable = preferred
+          && !excluded.has(preferred.id)
+          && isRouteAvailable(registry, preferred, now, requirements);
+        if (preferredUsable && !tps.isDegraded(preferred.id)) {
+          route = preferred;
+        } else {
+          const fallbackExcluded = new Set(excluded);
+          if (preferred) fallbackExcluded.add(preferred.id);
+          route = pickRoute({ registry, model, excluded: fallbackExcluded, now, requirements })
+            ?? (preferredUsable ? preferred : null);
+        }
+        if (!route) {
+          if (quotaBlocked()) {
+            abandon();
+            return { response: quotaError() };
+          }
+          break;
+        }
+        key = pickKey(registry, route.providerId, now);
+        if (!key) {
+          excluded.add(route.id);
+          continue;
+        }
+      } else if (cacheAware) {
         const pair = resolvePin({ registry, model, token, pins, now, requirements })
           ?? assignPin({ registry, model, pins, excluded, now, requirements });
         if (!pair) {
@@ -449,6 +482,7 @@ export function createGateway({ registry, config, telemetry, logger, metrics, fx
     const watchdog = createIdleWatchdog(registry.setting('idle_timeout_ms', config.idleTimeoutMs), () => controller.abort(new Error('upstream_idle_timeout')));
     watchdog.touch();
     const started = Date.now();
+    const startedPerf = performance.now();
     let upstream;
     try {
       upstream = await fetch(buildUpstreamUrl(provider.baseUrl, subPath), {
@@ -483,13 +517,13 @@ export function createGateway({ registry, config, telemetry, logger, metrics, fx
     }
     const countUsage = upstream.status < 400;
     return responseHandler.passThrough({
-      request, upstream, route, provider, key, token, model, attempt, latencyMs,
+      request, upstream, route, provider, key, token, model, attempt, latencyMs, startedPerf,
       watchdog, onClientAbort, countUsage, capture, fxRate, currency, prices, settle, abandon,
     });
   }
 
   return {
-    handleModels, handleProxy, runProbe, limiter, pins, responseCache,
+    handleModels, handleProxy, runProbe, limiter, pins, responseCache, tps,
     modelInfo: info.modelInfo, keyInfo: info.keyInfo,
   };
 }

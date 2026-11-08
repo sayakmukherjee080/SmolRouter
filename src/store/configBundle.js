@@ -20,6 +20,17 @@ export function exportBundle(registry, { includeSecrets = false } = {}) {
     downstreamOutputCostPerM: model.downstreamOutputCostPerM,
     downstreamCachedInputCostPerM: model.downstreamCachedInputCostPerM,
     downstreamCurrency: model.downstreamCurrency ?? null,
+    tpsFloor: model.tpsFloor ?? null,
+    tpsProbeIntervalMs: model.tpsProbeIntervalMs ?? null,
+    tpsMaxTtftMs: model.tpsMaxTtftMs ?? null,
+    preferredRoute: model.preferredRouteId ? (() => {
+      const route = registry.routeByIdOrNull(model.preferredRouteId);
+      if (!route) return null;
+      return {
+        provider: registry.providerById(route.providerId)?.name ?? null,
+        upstreamModel: route.upstreamModel,
+      };
+    })() : null,
     routes: model.routes.map((route) => ({
       provider: registry.providerById(route.providerId)?.name ?? null,
       upstreamModel: route.upstreamModel,
@@ -94,6 +105,39 @@ function validateBundle(bundle) {
       || model.downstreamCachedInputCostPerM != null;
     if (hasDownstream && (model.downstreamCurrency === undefined || model.downstreamCurrency === null)) {
       throw new ValidationError(`model ${model.name} has downstream prices but no downstreamCurrency; re-export with currency metadata`);
+    }
+    if (model.tpsFloor !== undefined && model.tpsFloor !== null && model.tpsFloor !== '') {
+      if (typeof model.tpsFloor !== 'number' && typeof model.tpsFloor !== 'string') {
+        throw new ValidationError(`model ${model.name} tpsFloor must be a number or numeric string`);
+      }
+      const floor = Number(model.tpsFloor);
+      if (!Number.isFinite(floor) || floor <= 0) {
+        throw new ValidationError(`model ${model.name} tpsFloor must be a positive number or null`);
+      }
+    }
+    if (model.tpsProbeIntervalMs !== undefined && model.tpsProbeIntervalMs !== null && model.tpsProbeIntervalMs !== '') {
+      if (typeof model.tpsProbeIntervalMs !== 'number' && typeof model.tpsProbeIntervalMs !== 'string') {
+        throw new ValidationError(`model ${model.name} tpsProbeIntervalMs must be a number or numeric string`);
+      }
+      const interval = Number(model.tpsProbeIntervalMs);
+      if (!Number.isFinite(interval) || interval < 60000 || interval > 1800000) {
+        throw new ValidationError(`model ${model.name} tpsProbeIntervalMs must be between 60000 and 1800000 or null`);
+      }
+    }
+    if (model.tpsMaxTtftMs !== undefined && model.tpsMaxTtftMs !== null && model.tpsMaxTtftMs !== '') {
+      if (typeof model.tpsMaxTtftMs !== 'number' && typeof model.tpsMaxTtftMs !== 'string') {
+        throw new ValidationError(`model ${model.name} tpsMaxTtftMs must be a number or numeric string`);
+      }
+      const ttft = Number(model.tpsMaxTtftMs);
+      if (!Number.isFinite(ttft) || ttft < 0) {
+        throw new ValidationError(`model ${model.name} tpsMaxTtftMs must be positive or null`);
+      }
+    }
+    if (model.preferredRoute !== undefined && model.preferredRoute !== null) {
+      if (typeof model.preferredRoute !== 'object' || typeof model.preferredRoute.provider !== 'string'
+        || typeof model.preferredRoute.upstreamModel !== 'string') {
+        throw new ValidationError(`model ${model.name} preferredRoute requires provider and upstreamModel`);
+      }
     }
     for (const route of model.routes || []) {
       if (!route || typeof route.provider !== 'string' || typeof route.upstreamModel !== 'string') {
@@ -192,6 +236,9 @@ export function importBundle(registry, bundle) {
         downstreamOutputCostPerM: entry.downstreamOutputCostPerM ?? null,
         downstreamCachedInputCostPerM: entry.downstreamCachedInputCostPerM ?? null,
         downstreamCurrency: entry.downstreamCurrency ?? null,
+        tpsFloor: entry.tpsFloor ?? null,
+        tpsProbeIntervalMs: entry.tpsProbeIntervalMs ?? null,
+        tpsMaxTtftMs: entry.tpsMaxTtftMs ?? null,
       });
       created.models += 1;
     } else {
@@ -226,6 +273,16 @@ export function importBundle(registry, bundle) {
         created.routes += 1;
       } catch {
         skipped.routes += 1;
+      }
+    }
+    if (entry.preferredRoute) {
+      const preferredProvider = providerByName(registry, entry.preferredRoute.provider);
+      const preferred = preferredProvider
+        ? registry.routesForModel(model.id).find((route) => route.providerId === preferredProvider.id
+          && route.upstreamModel === entry.preferredRoute.upstreamModel)
+        : null;
+      if (preferred && model.preferredRouteId !== preferred.id) {
+        registry.updateModel(model.id, { preferredRouteId: preferred.id });
       }
     }
   }

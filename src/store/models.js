@@ -1,8 +1,59 @@
 // Model and route mutations, applied to the registry image and SQLite.
 import { ValidationError, optionalCapabilities, optionalCost, requireName, requireNumber } from './validate.js';
 import { requireProvider } from './providers.js';
+import { TPS_MIN_PROBE_INTERVAL_MS, TPS_MAX_PROBE_INTERVAL_MS } from '../util/tps_limits.js';
 
 const BALANCE_STRATEGIES = new Set(['round_robin', 'least_used', 'cache_aware']);
+
+// Validates a numeric input without accepting arrays, booleans, or objects.
+function requireNumericInput(value, field) {
+  if (typeof value !== 'number' && typeof value !== 'string') {
+    throw new ValidationError(`${field} must be a number or numeric string`);
+  }
+  const num = Number(value);
+  if (!Number.isFinite(num)) throw new ValidationError(`${field} must be a finite number`);
+  return num;
+}
+
+// Validates an optional TPS floor; null disables TPS-aware routing.
+function optionalTpsFloor(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const num = requireNumericInput(value, 'tps_floor');
+  if (num <= 0) throw new ValidationError('tps_floor must be a positive number or null');
+  return num;
+}
+
+// Validates an optional per-model TPS probe interval in milliseconds.
+function optionalTpsInterval(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const num = requireNumericInput(value, 'tps_probe_interval_ms');
+  if (num < TPS_MIN_PROBE_INTERVAL_MS || num > TPS_MAX_PROBE_INTERVAL_MS) {
+    throw new ValidationError(`tps_probe_interval_ms must be between ${TPS_MIN_PROBE_INTERVAL_MS} and ${TPS_MAX_PROBE_INTERVAL_MS} or null`);
+  }
+  return Math.trunc(num);
+}
+
+// Validates an optional maximum content TTFT; null or zero disables the gate.
+function optionalTpsTtft(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const num = requireNumericInput(value, 'tps_max_ttft_ms');
+  if (num < 0) throw new ValidationError('tps_max_ttft_ms must be positive or null');
+  if (num === 0) return null;
+  return Math.trunc(num);
+}
+
+// Validates that a preferred route exists and belongs to the model.
+function requirePreferredRoute(registry, modelId, value) {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value !== 'number' && typeof value !== 'string') {
+    throw new ValidationError('preferred_route_id must be a route id');
+  }
+  const route = registry.routeById.get(Number(value));
+  if (!route || route.modelId !== Number(modelId)) {
+    throw new ValidationError('preferred_route_id must reference a route of this model');
+  }
+  return route.id;
+}
 
 // Returns the active billing currency for newly stored downstream prices.
 function billingCurrency(registry) {
@@ -13,10 +64,17 @@ function billingCurrency(registry) {
 export function createModel(registry, {
   name, balanceStrategy = 'round_robin', cacheEnabled = true,
   downstreamInputCostPerM = null, downstreamOutputCostPerM = null, downstreamCachedInputCostPerM = null,
-  downstreamCurrency = null,
+  downstreamCurrency = null, tpsFloor = null, preferredRouteId = null, tpsProbeIntervalMs = null,
+  tpsMaxTtftMs = null,
 }) {
   const modelName = requireName(name, 'name');
   if (!BALANCE_STRATEGIES.has(balanceStrategy)) throw new ValidationError('invalid balance strategy');
+  if (preferredRouteId !== null && preferredRouteId !== undefined && preferredRouteId !== '') {
+    throw new ValidationError('preferred_route_id requires an existing route; create the model first');
+  }
+  const tpsFloorValue = optionalTpsFloor(tpsFloor);
+  const tpsInterval = optionalTpsInterval(tpsProbeIntervalMs);
+  const tpsTtft = optionalTpsTtft(tpsMaxTtftMs);
   const downstreamInput = optionalCost(downstreamInputCostPerM, 'downstream_input_cost_per_m');
   const downstreamOutput = optionalCost(downstreamOutputCostPerM, 'downstream_output_cost_per_m');
   const downstreamCached = optionalCost(downstreamCachedInputCostPerM, 'downstream_cached_input_cost_per_m');
@@ -29,14 +87,17 @@ export function createModel(registry, {
     const info = registry.db.prepare(
       `INSERT INTO models
         (name, balance_strategy, cache_enabled, downstream_input_cost_per_m, downstream_output_cost_per_m,
-         downstream_cached_input_cost_per_m, downstream_currency, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+         downstream_cached_input_cost_per_m, downstream_currency, tps_floor, preferred_route_id,
+         tps_probe_interval_ms, tps_max_ttft_ms, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(modelName, balanceStrategy, cacheEnabled ? 1 : 0, downstreamInput, downstreamOutput, downstreamCached,
-      currentCurrency, Date.now());
+      currentCurrency, tpsFloorValue, null, tpsInterval, tpsTtft, Date.now());
     const model = {
       id: Number(info.lastInsertRowid), name: modelName, balanceStrategy, cacheEnabled: Boolean(cacheEnabled),
       downstreamInputCostPerM: downstreamInput, downstreamOutputCostPerM: downstreamOutput,
       downstreamCachedInputCostPerM: downstreamCached, downstreamCurrency: currentCurrency,
+      tpsFloor: tpsFloorValue, preferredRouteId: null, tpsProbeIntervalMs: tpsInterval,
+      tpsMaxTtftMs: tpsTtft,
     };
     registry.modelsByName.set(model.name, model);
     registry.modelsById.set(model.id, model);
@@ -64,14 +125,25 @@ export function updateModel(registry, id, patch) {
     || patch.downstreamOutputCostPerM !== undefined
     || patch.downstreamCachedInputCostPerM !== undefined;
   const downstreamCurrency = pricesTouched ? billingCurrency(registry) : model.downstreamCurrency;
+  const tpsFloor = patch.tpsFloor === undefined ? model.tpsFloor : optionalTpsFloor(patch.tpsFloor);
+  const preferredRouteId = patch.preferredRouteId === undefined
+    ? model.preferredRouteId
+    : requirePreferredRoute(registry, model.id, patch.preferredRouteId);
+  const tpsProbeIntervalMs = patch.tpsProbeIntervalMs === undefined
+    ? model.tpsProbeIntervalMs
+    : optionalTpsInterval(patch.tpsProbeIntervalMs);
+  const tpsMaxTtftMs = patch.tpsMaxTtftMs === undefined
+    ? model.tpsMaxTtftMs
+    : optionalTpsTtft(patch.tpsMaxTtftMs);
   if (!BALANCE_STRATEGIES.has(balanceStrategy)) throw new ValidationError('invalid balance strategy');
   try {
     registry.db.prepare(`UPDATE models SET name = ?, balance_strategy = ?, cache_enabled = ?,
       downstream_input_cost_per_m = ?, downstream_output_cost_per_m = ?, downstream_cached_input_cost_per_m = ?,
-      downstream_currency = ?
+      downstream_currency = ?, tps_floor = ?, preferred_route_id = ?, tps_probe_interval_ms = ?,
+      tps_max_ttft_ms = ?
       WHERE id = ?`)
       .run(name, balanceStrategy, cacheEnabled ? 1 : 0, downstreamInput, downstreamOutput, downstreamCached,
-        downstreamCurrency, id);
+        downstreamCurrency, tpsFloor, preferredRouteId, tpsProbeIntervalMs, tpsMaxTtftMs, id);
   } catch (error) {
     if (String(error.message).includes('UNIQUE')) throw new ValidationError('model name already exists');
     throw error;
@@ -84,6 +156,10 @@ export function updateModel(registry, id, patch) {
   model.downstreamOutputCostPerM = downstreamOutput;
   model.downstreamCachedInputCostPerM = downstreamCached;
   model.downstreamCurrency = downstreamCurrency;
+  model.tpsFloor = tpsFloor;
+  model.preferredRouteId = preferredRouteId;
+  model.tpsProbeIntervalMs = tpsProbeIntervalMs;
+  model.tpsMaxTtftMs = tpsMaxTtftMs;
   registry.modelsByName.set(name, model);
   return model;
 }
@@ -142,6 +218,7 @@ export function createRoute(registry, {
     consecutiveFailures: 0,
     cooldownUntil: 0,
     lastProbeAt: 0,
+    tpsResetAt: 0,
   };
   const info = registry.db.prepare(`INSERT INTO routes
     (model_id, provider_id, upstream_model, priority, input_cost_per_m, output_cost_per_m,
@@ -178,12 +255,14 @@ export function updateRoute(registry, routeId, patch) {
     providerId: patch.providerId === undefined ? route.providerId : Number(patch.providerId),
   };
   requireProvider(registry, next.providerId);
+  const repointed = next.providerId !== route.providerId || next.upstreamModel !== route.upstreamModel;
+  next.tpsResetAt = repointed ? Date.now() : route.tpsResetAt;
   registry.db.prepare(`UPDATE routes SET provider_id = ?, upstream_model = ?, priority = ?,
     input_cost_per_m = ?, output_cost_per_m = ?, cached_input_cost_per_m = ?, daily_quota = ?,
-    capabilities = ?, max_context = ? WHERE id = ?`).run(
+    capabilities = ?, max_context = ?, tps_reset_at = ? WHERE id = ?`).run(
     next.providerId, next.upstreamModel, next.priority,
     next.inputCostPerM, next.outputCostPerM, next.cachedInputCostPerM, next.dailyQuota,
-    next.capabilities ? JSON.stringify(next.capabilities) : null, next.maxContext, route.id,
+    next.capabilities ? JSON.stringify(next.capabilities) : null, next.maxContext, next.tpsResetAt, route.id,
   );
   Object.assign(route, next);
   const list = registry.routesByModel.get(route.modelId) || [];
@@ -191,11 +270,22 @@ export function updateRoute(registry, routeId, patch) {
   return route;
 }
 
-// Soft-deletes a route.
+// Soft-deletes a route and clears any model preference that referenced it.
 export function softDeleteRoute(registry, routeId) {
   const route = registry.routeById.get(Number(routeId));
   if (!route) throw new ValidationError('route not found');
-  registry.db.prepare('UPDATE routes SET deleted_at = ? WHERE id = ?').run(Date.now(), route.id);
+  registry.db.exec('BEGIN IMMEDIATE');
+  try {
+    registry.db.prepare('UPDATE routes SET deleted_at = ? WHERE id = ?').run(Date.now(), route.id);
+    registry.db.prepare('UPDATE models SET preferred_route_id = NULL WHERE preferred_route_id = ?').run(route.id);
+    registry.db.exec('COMMIT');
+  } catch (error) {
+    registry.db.exec('ROLLBACK');
+    throw error;
+  }
+  for (const model of registry.modelsById.values()) {
+    if (model.preferredRouteId === route.id) model.preferredRouteId = null;
+  }
   registry.routeById.delete(route.id);
   const list = registry.routesByModel.get(route.modelId) || [];
   const index = list.indexOf(route);

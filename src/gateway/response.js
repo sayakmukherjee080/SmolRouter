@@ -2,6 +2,7 @@
 import { buildClientResponseHeaders } from '../util/headers.js';
 import { applySuccess } from './cooldown.js';
 import { createUsageExtractor, estimateTokens } from './usage.js';
+import { isValidTpsSample } from './tps_validity.js';
 import { resolveRouteCost, computeDownstreamCost } from './pricing.js';
 
 // Determines the usage extractor mode for a response content type.
@@ -13,10 +14,10 @@ function extractorMode(contentType) {
 }
 
 // Creates the accepted-response handler bound to registry, telemetry, and metrics.
-export function createResponseHandler({ registry, config, telemetry, logger, metrics, onRouteStateChange }) {
+export function createResponseHandler({ registry, config, telemetry, logger, metrics, tps, onRouteStateChange }) {
   // Streams or captures an accepted upstream response while extracting usage.
   async function passThrough({
-    request, upstream, route, provider, key, token, model, attempt, latencyMs,
+    request, upstream, route, provider, key, token, model, attempt, latencyMs, startedPerf,
     watchdog, onClientAbort, countUsage, capture, fxRate, currency, prices, settle, abandon,
   }) {
     const now = Date.now();
@@ -37,7 +38,7 @@ export function createResponseHandler({ registry, config, telemetry, logger, met
 
     if (canCapture && upstream.body) {
       const reader = upstream.body.getReader();
-      const extractor = createUsageExtractor({ mode, maxBytes: parseMax });
+      const extractor = createUsageExtractor({ mode, maxBytes: parseMax, startedPerf });
       const chunks = [];
       try {
         for (;;) {
@@ -86,7 +87,7 @@ export function createResponseHandler({ registry, config, telemetry, logger, met
     let body = null;
     if (upstream.body) {
       const [clientStream, parseStream] = upstream.body.tee();
-      const extractor = createUsageExtractor({ mode, maxBytes: parseMax });
+      const extractor = createUsageExtractor({ mode, maxBytes: parseMax, startedPerf });
       let responseBytes = 0;
       void (async () => {
         const reader = parseStream.getReader();
@@ -140,6 +141,24 @@ export function createResponseHandler({ registry, config, telemetry, logger, met
     const cachedTokens = observed?.cachedTokens ?? 0;
     const upstreamCost = observed?.upstreamCost ?? null;
     const estimated = observed === null;
+    const tpsSample = observed ? {
+      finishReason: observed.finishReason,
+      contentTokens: observed.contentTokens,
+      contentTtftMs: observed.contentTtftMs,
+      contentGenerationMs: observed.contentGenerationMs,
+      contentTps: observed.contentTps,
+      effectiveTps: observed.effectiveTps,
+      cachedTokens,
+    } : null;
+    const tpsValid = counted && status >= 200 && status < 400
+      && isValidTpsSample(tpsSample, { maxTtftMs: model.tpsMaxTtftMs });
+    if (tpsValid) {
+      try {
+        tps?.recordSample(route, tpsSample, Date.now());
+      } catch (error) {
+        logger.warn('tps sample failed', { routeId: route.id, error: error.message });
+      }
+    }
     const costs = resolveRouteCost(route);
     const discount = registry.setting('cached_input_discount', config.cachedInputDiscount);
     const cachedPrice = route.cachedInputCostPerM ?? costs.input * discount;
@@ -158,6 +177,11 @@ export function createResponseHandler({ registry, config, telemetry, logger, met
       providerKeyId: key.id, attempt, status, latencyMs,
       inputTokens, outputTokens, cachedTokens, estCost, savedCost,
       upstreamCost, downstreamCost, currency, fxRate,
+      responseTokens: tpsSample?.contentTokens ?? null,
+      responseTtftMs: tpsSample?.contentTtftMs ?? null,
+      responseGenerationMs: tpsSample?.contentGenerationMs ?? null,
+      effectiveTps: tpsValid ? tpsSample.effectiveTps : null,
+      responseTps: tpsSample?.contentTps ?? null,
       bytes: responseBytes, estimated, isProbe: false,
       error: status >= 400 ? `upstream status ${status}` : null,
     });

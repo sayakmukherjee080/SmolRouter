@@ -1,8 +1,8 @@
 {
   "name": "smolorchestrator",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
-  "description": "Lightweight, self-hosted OpenAI-compatible AI gateway: one key, many providers, routing, key pools, and telemetry.",
+  "description": "Lightweight, self-hosted OpenAI-compatible AI gateway with TPS-aware routing, key pools, failover, budgets, and telemetry.",
   "type": "module",
   "engines": {
     "node": ">=22.13"

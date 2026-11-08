@@ -93,6 +93,58 @@ test('upgrade backfills token usage and rebuilds usage with currency', () => {
     copyThrough('009_backfill_legacy_spend.sql');
     runMigrations(db, migrations, null);
 
+    copyThrough('010_tps_routing.sql');
+    runMigrations(db, migrations, null);
+    const modelColumns = db.prepare('PRAGMA table_info(models)').all().map((row) => row.name);
+    for (const column of ['tps_floor', 'preferred_route_id', 'tps_probe_interval_ms']) {
+      assert.ok(modelColumns.includes(column), `models.${column} exists after upgrade`);
+    }
+    const telemetryColumns = db.prepare('PRAGMA table_info(telemetry)').all().map((row) => row.name);
+    for (const column of ['response_tokens', 'response_ttft_ms', 'response_generation_ms', 'effective_tps', 'response_tps']) {
+      assert.ok(telemetryColumns.includes(column), `telemetry.${column} exists after upgrade`);
+    }
+
+    copyThrough('011_tps_hardening.sql');
+    runMigrations(db, migrations, null);
+    assert.ok(db.prepare('PRAGMA table_info(models)').all().some((row) => row.name === 'tps_max_ttft_ms'));
+    assert.ok(db.prepare('PRAGMA table_info(routes)').all().some((row) => row.name === 'tps_reset_at'));
+    const indexNames = db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all().map((row) => row.name);
+    assert.ok(indexNames.includes('idx_models_preferred_route'), 'preferred route index exists');
+    const triggerNames = db.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger'").all().map((row) => row.name);
+    for (const name of ['models_preferred_route_insert', 'models_preferred_route_update',
+      'routes_preferred_route_delete', 'routes_preferred_route_soft_delete']) {
+      assert.ok(triggerNames.includes(name), `${name} exists`);
+    }
+
+    const upgradeNow = Date.now();
+    db.prepare('INSERT INTO providers (name, base_url, created_at) VALUES (?, ?, ?)')
+      .run('tps-provider', 'http://127.0.0.1:9999/v1', upgradeNow);
+    const tpsProvider = db.prepare("SELECT id FROM providers WHERE name = 'tps-provider'").get().id;
+    db.prepare('INSERT INTO models (name, balance_strategy, created_at) VALUES (?, ?, ?)')
+      .run('tps-model-a', 'round_robin', upgradeNow);
+    db.prepare('INSERT INTO models (name, balance_strategy, created_at) VALUES (?, ?, ?)')
+      .run('tps-model-b', 'round_robin', upgradeNow);
+    const tpsModelA = db.prepare("SELECT id FROM models WHERE name = 'tps-model-a'").get().id;
+    const tpsModelB = db.prepare("SELECT id FROM models WHERE name = 'tps-model-b'").get().id;
+    db.prepare('INSERT INTO routes (model_id, provider_id, upstream_model, created_at) VALUES (?, ?, ?, ?)')
+      .run(tpsModelA, tpsProvider, 'ua', upgradeNow);
+    db.prepare('INSERT INTO routes (model_id, provider_id, upstream_model, created_at) VALUES (?, ?, ?, ?)')
+      .run(tpsModelB, tpsProvider, 'ub', upgradeNow);
+    const tpsRouteA = db.prepare("SELECT id FROM routes WHERE upstream_model = 'ua'").get().id;
+    const tpsRouteB = db.prepare("SELECT id FROM routes WHERE upstream_model = 'ub'").get().id;
+    db.prepare('UPDATE models SET preferred_route_id = ? WHERE id = ?').run(tpsRouteA, tpsModelA);
+    assert.throws(
+      () => db.prepare('UPDATE models SET preferred_route_id = ? WHERE id = ?').run(tpsRouteB, tpsModelA),
+      /preferred_route_id/,
+      'a preferred route from another model is rejected',
+    );
+    db.prepare('UPDATE routes SET deleted_at = ? WHERE id = ?').run(upgradeNow, tpsRouteA);
+    assert.equal(
+      db.prepare('SELECT preferred_route_id FROM models WHERE id = ?').get(tpsModelA).preferred_route_id,
+      null,
+      'soft-deleting a route clears the preference',
+    );
+
     const events = db.prepare('SELECT * FROM token_usage_events ORDER BY ts').all();
     assert.equal(events.length, 2, 'only successful legacy attempts are backfilled, once');
     assert.equal(events[0].tokens_in, 10);

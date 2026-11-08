@@ -29,6 +29,7 @@ async function readJson(request, config, registry) {
 export function createAdminApi({ registry, session, config, logger, backups, gateway, fx, telemetry }) {
   const settingsService = createSettingsService({ registry, config, logger, fx, telemetry });
   const settingsView = settingsService.view;
+  const tps = gateway.tps;
 
   // Computes p50/p95 latency per model and provider from recent successful attempts.
   function latencyReport(hours = 24) {
@@ -54,6 +55,60 @@ export function createAdminApi({ registry, session, config, logger, backups, gat
         p50: percentile(latencies, 0.5), p95: percentile(latencies, 0.95),
       };
     }).sort((a, b) => b.requests - a.requests);
+  }
+
+  // Computes median effective TPS and TTFT per model and provider from recent valid samples.
+  function tpsReport(hours = 24) {
+    const since = Date.now() - hours * 3600000;
+    const rows = registry.db.prepare(`SELECT route_id, response_tokens, effective_tps, response_ttft_ms,
+        response_tps, ts
+      FROM telemetry
+      WHERE ts >= ? AND is_probe = 0 AND status >= 200 AND status < 400
+        AND effective_tps IS NOT NULL AND cached_tokens = 0
+      ORDER BY ts DESC LIMIT 5000`).all(since);
+    const groups = new Map();
+    for (const row of rows) {
+      const route = registry.routeByIdOrNull(row.route_id);
+      const model = route ? registry.modelById(route.modelId) : null;
+      const provider = route ? registry.providerById(route.providerId) : null;
+      const key = `${route?.id ?? 0}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          model: model?.name ?? 'unknown',
+          provider: provider?.name ?? 'unknown',
+          routeId: route?.id ?? null,
+          upstreamModel: route?.upstreamModel ?? null,
+          effective: [],
+          ttft: [],
+          content: [],
+          tokens: 0,
+          lastAt: 0,
+        });
+      }
+      const group = groups.get(key);
+      group.effective.push(row.effective_tps);
+      if (Number.isFinite(row.response_ttft_ms)) group.ttft.push(row.response_ttft_ms);
+      if (Number.isFinite(row.response_tps)) group.content.push(row.response_tps);
+      group.tokens += row.response_tokens ?? 0;
+      group.lastAt = Math.max(group.lastAt, row.ts);
+    }
+    const median = (values) => {
+      if (values.length === 0) return null;
+      const sorted = [...values].sort((a, b) => a - b);
+      return sorted[Math.floor((sorted.length - 1) / 2)];
+    };
+    return [...groups.values()].map((group) => ({
+      model: group.model,
+      provider: group.provider,
+      routeId: group.routeId,
+      upstreamModel: group.upstreamModel,
+      samples: group.effective.length,
+      effectiveTps: median(group.effective),
+      ttftMs: median(group.ttft),
+      contentTps: median(group.content),
+      responseTokens: group.tokens,
+      lastAt: group.lastAt || null,
+    })).sort((a, b) => b.samples - a.samples);
   }
 
   // Returns response-cache aggregates for the current UTC day.
@@ -116,6 +171,17 @@ export function createAdminApi({ registry, session, config, logger, backups, gat
       if (routes.some((route) => route.providerId === providerId)) affected.add(modelId);
     }
     return affected;
+  }
+
+  // Returns the routes that currently use a provider.
+  function routesForProvider(providerId) {
+    const routes = [];
+    for (const list of registry.routesByModel.values()) {
+      for (const route of list) {
+        if (route.providerId === providerId) routes.push(route);
+      }
+    }
+    return routes;
   }
 
   // Invalidates cached responses for every model using a provider.
@@ -194,6 +260,7 @@ export function createAdminApi({ registry, session, config, logger, backups, gat
     if (path === '/models' && method === 'GET') {
       const models = registry.listModels().map((model) => ({
         ...model,
+        tps: tps?.status(model) ?? null,
         routes: model.routes.map((route) => {
           const costs = resolveRouteCost(route);
           return {
@@ -233,14 +300,23 @@ export function createAdminApi({ registry, session, config, logger, backups, gat
     }
     if (path === '/models' && method === 'POST') {
       return mutate(request, { action: 'model.create', resourceType: 'model', actor, ip: requestIp, status: 201 },
-        async () => registry.createModel(await readJson(request, config, registry)));
+        async () => {
+          const model = registry.createModel(await readJson(request, config, registry));
+          tps?.syncModel(model);
+          return model;
+        });
     }
     let match = /^\/models\/(\d+)$/.exec(path);
     if (match && method === 'PATCH') {
       return mutate(request, { action: 'model.update', resourceType: 'model', resourceId: () => Number(match[1]), actor, ip: requestIp },
         async () => {
-          const model = registry.updateModel(Number(match[1]), await readJson(request, config, registry));
+          const patch = await readJson(request, config, registry);
+          const model = registry.updateModel(Number(match[1]), patch);
           gateway.responseCache.invalidateModel(model.id);
+          if ('tpsFloor' in patch || 'preferredRouteId' in patch || 'tpsProbeIntervalMs' in patch
+            || 'tpsMaxTtftMs' in patch) {
+            tps?.syncModel(model);
+          }
           return model;
         });
     }
@@ -251,6 +327,7 @@ export function createAdminApi({ registry, session, config, logger, backups, gat
           registry.softDeleteModel(id);
           gateway.responseCache.invalidateModel(id);
           gateway.pins.clearModel(id);
+          tps?.invalidateModel(id);
           return { id };
         });
     }
@@ -267,6 +344,21 @@ export function createAdminApi({ registry, session, config, logger, backups, gat
         });
     }
 
+    match = /^\/models\/(\d+)\/tps\/probe$/.exec(path);
+    if (match && method === 'POST') {
+      const modelId = Number(match[1]);
+      return mutate(request, { action: 'model.tps.probe', resourceType: 'model', resourceId: () => modelId, actor, ip: requestIp },
+        async () => {
+          const model = registry.requireModel(modelId);
+          if (!tps) return { probed: false, reason: 'tps_unavailable', tps: null };
+          const current = tps.status(model);
+          if (!current.enabled) return { probed: false, reason: 'tps_disabled', tps: current };
+          const route = tps.preferredRoute(model);
+          const passed = await tps.probeNow(route.id);
+          return { probed: true, passed, tps: tps.status(model) };
+        });
+    }
+
     if (path === '/providers' && method === 'GET') return envelopeSuccess({ providers: registry.listProviders() });
     if (path === '/providers' && method === 'POST') {
       return mutate(request, { action: 'provider.create', resourceType: 'provider', actor, ip: requestIp, status: 201 },
@@ -277,8 +369,13 @@ export function createAdminApi({ registry, session, config, logger, backups, gat
       return mutate(request, { action: 'provider.update', resourceType: 'provider', resourceId: () => Number(match[1]), actor, ip: requestIp },
         async () => {
           const id = Number(match[1]);
+          const before = registry.providerById(id);
+          const previousBaseUrl = before?.baseUrl;
           const provider = registry.updateProvider(id, await readJson(request, config, registry));
           invalidateProviderModels(id);
+          if (previousBaseUrl === undefined || previousBaseUrl !== provider.baseUrl) {
+            for (const route of routesForProvider(id)) tps?.invalidateRoute(route.id);
+          }
           return provider;
         });
     }
@@ -291,6 +388,7 @@ export function createAdminApi({ registry, session, config, logger, backups, gat
           for (const modelId of affected) {
             gateway.responseCache.invalidateModel(modelId);
             gateway.pins.clearModel(modelId);
+            tps?.invalidateModel(modelId);
           }
           return { id };
         });
@@ -321,8 +419,15 @@ export function createAdminApi({ registry, session, config, logger, backups, gat
     if (match && method === 'PATCH') {
       return mutate(request, { action: 'route.update', resourceType: 'route', resourceId: () => Number(match[1]), actor, ip: requestIp },
         async () => {
-          const route = registry.updateRoute(Number(match[1]), await readJson(request, config, registry));
+          const id = Number(match[1]);
+          const before = registry.routeByIdOrNull(id);
+          const beforeProviderId = before?.providerId;
+          const beforeUpstream = before?.upstreamModel;
+          const route = registry.updateRoute(id, await readJson(request, config, registry));
           gateway.responseCache.invalidateModel(route.modelId);
+          if (beforeProviderId === undefined || beforeProviderId !== route.providerId || beforeUpstream !== route.upstreamModel) {
+            tps?.invalidateRoute(route.id);
+          }
           return route;
         });
     }
@@ -335,6 +440,7 @@ export function createAdminApi({ registry, session, config, logger, backups, gat
           if (existing) {
             gateway.responseCache.invalidateModel(existing.modelId);
             gateway.pins.clearRoute(id);
+            tps?.invalidateRoute(id);
           }
           return { id };
         });
@@ -414,6 +520,7 @@ export function createAdminApi({ registry, session, config, logger, backups, gat
         currencySummary,
         cacheStats: cacheReport(),
         latency: latencyReport(),
+        tps: tpsReport(),
       });
     }
     if (path === '/telemetry' && method === 'GET') {
@@ -465,7 +572,9 @@ export function createAdminApi({ registry, session, config, logger, backups, gat
       return mutate(request, { action: 'config.import', resourceType: 'config', actor, ip: requestIp },
         async () => {
           const body = await readJson(request, config, registry);
-          return importBundle(registry, body.bundle ?? body);
+          const result = importBundle(registry, body.bundle ?? body);
+          tps?.reload();
+          return result;
         });
     }
 

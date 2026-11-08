@@ -19,6 +19,7 @@ Thanks for contributing. SmolOrchestrator is a zero-dependency, single-process N
 - `web/` — admin UI (ES modules, no framework).
 - `test/` — `node:test` suites and stub upstreams.
 - `migrations/` — ordered SQL migrations.
+- `docs/` — user and operator documentation; the README is the landing page.
 
 ## Development
 
@@ -62,5 +63,7 @@ npm start
 3. Run `npm test` before opening the PR.
 4. Describe the behavior change and any migration or configuration impact.
 5. Update the Postman collection when an endpoint or response shape changes.
+6. Update the relevant guide in `/docs` when user-facing behavior changes.
+7. Add user-facing changes to `CHANGELOG.md` under the next release version.
 
 By contributing, you agree that your code is licensed under the AGPLv3.

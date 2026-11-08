@@ -25,7 +25,7 @@ export async function render(main, signal) {
           <label class="field"><span>Backoff cap (ms)</span>
             <input name="backoff_cap_ms" type="number" min="1000" value="${escapeHtml(settings.backoff_cap_ms)}">
           </label>
-          <label class="field"><span>Probe budget (per route / hour)</span>
+          <label class="field"><span>Probe budget (per route / hour, health and TPS separately)</span>
             <input name="probe_budget_per_hour" type="number" min="0" value="${escapeHtml(settings.probe_budget_per_hour)}">
           </label>
           <label class="field"><span>Health check interval (ms)</span>
@@ -35,7 +35,7 @@ export async function render(main, signal) {
         <label class="switch">
           <input type="checkbox" name="probe_enabled"${settings.probe_enabled ? ' checked' : ''}>
           <span class="track"></span>
-          <span>Active probe recovery for cooling routes</span>
+          <span>Active probe recovery for cooling and TPS-degraded routes</span>
         </label>
         <label class="switch">
           <input type="checkbox" name="health_check_enabled"${settings.health_check_enabled ? ' checked' : ''}>

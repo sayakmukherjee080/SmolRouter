@@ -62,6 +62,10 @@ export class Registry {
         downstreamOutputCostPerM: row.downstream_output_cost_per_m,
         downstreamCachedInputCostPerM: row.downstream_cached_input_cost_per_m,
         downstreamCurrency: row.downstream_currency ?? 'USD',
+        tpsFloor: row.tps_floor ?? null,
+        preferredRouteId: row.preferred_route_id ?? null,
+        tpsProbeIntervalMs: row.tps_probe_interval_ms ?? null,
+        tpsMaxTtftMs: row.tps_max_ttft_ms ?? null,
       };
       this.modelsByName.set(model.name, model);
       this.modelsById.set(model.id, model);
@@ -113,6 +117,7 @@ export class Registry {
         consecutiveFailures: row.consecutive_failures,
         cooldownUntil: row.cooldown_until,
         lastProbeAt: row.last_probe_at,
+        tpsResetAt: row.tps_reset_at ?? 0,
       };
       this.routeById.set(route.id, route);
       if (!this.routesByModel.has(route.modelId)) this.routesByModel.set(route.modelId, []);
@@ -120,6 +125,11 @@ export class Registry {
     }
     for (const routes of this.routesByModel.values()) {
       routes.sort((a, b) => a.priority - b.priority || a.id - b.id);
+    }
+    for (const model of this.modelsById.values()) {
+      if (model.preferredRouteId !== null && !this.routeById.has(model.preferredRouteId)) {
+        model.preferredRouteId = null;
+      }
     }
     for (const row of this.db.prepare('SELECT * FROM tokens WHERE deleted_at IS NULL').all()) {
       const token = {

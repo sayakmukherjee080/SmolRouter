@@ -44,7 +44,7 @@ export function createApp({ config, db, logger }) {
   const adminApi = createAdminApi({ registry, session, config, logger, backups, gateway, fx, telemetry });
   const staticServer = createStaticServer({ webRoot: path.join(ROOT, 'web') });
   const handle = createRouter({ gateway, adminApi, staticServer, db, metrics, registry, config });
-  return { handle, registry, telemetry, probe, gateway, session, metrics, backups, maintenance, db };
+  return { handle, registry, telemetry, probe, gateway, session, metrics, backups, maintenance, db, tps: gateway.tps };
 }
 
 // Applies baseline security headers, adding a CSP for admin UI responses.
@@ -186,6 +186,7 @@ async function main() {
   }
   app.telemetry.start();
   app.probe.start();
+  app.tps.start();
   app.backups.start();
   app.maintenance.start();
   const server = createHttpServer(app, config, logger);
@@ -212,6 +213,7 @@ async function main() {
       if (finished) return;
       finished = true;
       app.probe.stop();
+      app.tps.stop();
       app.backups.stop();
       app.maintenance.stop();
       await app.telemetry.stop();

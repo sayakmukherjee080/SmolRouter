@@ -19,14 +19,33 @@ export function createProvider(registry, { name, baseUrl }) {
   }
 }
 
-// Updates a provider's name or base URL.
+// Updates a provider's name or base URL, resetting TPS history on a URL change.
 export function updateProvider(registry, id, patch) {
   const provider = requireProvider(registry, id);
   const name = patch.name === undefined ? provider.name : requireName(patch.name, 'name');
   const baseUrl = patch.baseUrl === undefined ? provider.baseUrl : validateBaseUrl(patch.baseUrl);
-  registry.db.prepare('UPDATE providers SET name = ?, base_url = ? WHERE id = ?').run(name, baseUrl, id);
+  const changed = baseUrl !== provider.baseUrl;
+  const now = Date.now();
+  registry.db.exec('BEGIN IMMEDIATE');
+  try {
+    registry.db.prepare('UPDATE providers SET name = ?, base_url = ? WHERE id = ?').run(name, baseUrl, id);
+    if (changed) {
+      registry.db.prepare('UPDATE routes SET tps_reset_at = ? WHERE provider_id = ? AND deleted_at IS NULL').run(now, id);
+    }
+    registry.db.exec('COMMIT');
+  } catch (error) {
+    registry.db.exec('ROLLBACK');
+    throw error;
+  }
   provider.name = name;
   provider.baseUrl = baseUrl;
+  if (changed) {
+    for (const routes of registry.routesByModel.values()) {
+      for (const route of routes) {
+        if (route.providerId === Number(id)) route.tpsResetAt = now;
+      }
+    }
+  }
   return provider;
 }
 
@@ -36,6 +55,8 @@ export function softDeleteProvider(registry, id) {
   const now = Date.now();
   registry.db.exec('BEGIN IMMEDIATE');
   try {
+    registry.db.prepare(`UPDATE models SET preferred_route_id = NULL
+      WHERE preferred_route_id IN (SELECT id FROM routes WHERE provider_id = ? AND deleted_at IS NULL)`).run(id);
     registry.db.prepare('UPDATE routes SET deleted_at = ? WHERE provider_id = ? AND deleted_at IS NULL').run(now, id);
     registry.db.prepare('UPDATE provider_keys SET deleted_at = ? WHERE provider_id = ? AND deleted_at IS NULL').run(now, id);
     registry.db.prepare("UPDATE providers SET deleted_at = ?, name = name || ' [deleted ' || id || ']' WHERE id = ?").run(now, id);
@@ -44,8 +65,15 @@ export function softDeleteProvider(registry, id) {
     registry.db.exec('ROLLBACK');
     throw error;
   }
+  const removedRouteIds = new Set();
   for (const routes of registry.routesByModel.values()) {
-    for (const route of routes.filter((item) => item.providerId === id)) registry.routeById.delete(route.id);
+    for (const route of routes.filter((item) => item.providerId === id)) {
+      removedRouteIds.add(route.id);
+      registry.routeById.delete(route.id);
+    }
+  }
+  for (const model of registry.modelsById.values()) {
+    if (removedRouteIds.has(model.preferredRouteId)) model.preferredRouteId = null;
   }
   for (const [modelId, routes] of registry.routesByModel) {
     registry.routesByModel.set(modelId, routes.filter((route) => route.providerId !== id));

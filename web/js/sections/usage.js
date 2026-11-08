@@ -7,6 +7,13 @@ function windowLabel(ts) {
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
+// Formats a TPS value with extra precision near the floor.
+function fmtTps(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '—';
+  return num >= 100 ? num.toFixed(0) : num.toFixed(1);
+}
+
 // Renders the usage section with KPI totals, detail tables, cache stats, and latency.
 export async function render(main, signal) {
   const [usageData, { models }, { tokens }, { providers }, { settings }] = await Promise.all([
@@ -57,6 +64,7 @@ export async function render(main, signal) {
   const cacheLookups = cacheTotals.hits + cacheTotals.misses + cacheTotals.coalesced;
   const hitRate = cacheLookups > 0 ? ((cacheTotals.hits / cacheLookups) * 100).toFixed(1) : '0.0';
   const latency = usageData.latency ?? [];
+  const tpsRows = usageData.tps ?? [];
   const downstreamText = currencySummary.length
     ? currencySummary.map((row) => fmtMoney(row.downstream_cost, row.currency ?? currency)).join(' · ')
     : fmtMoney(totals.downstream);
@@ -136,6 +144,24 @@ export async function render(main, signal) {
             <td class="num">${fmtCost(row.saved_cost)}</td>
           </tr>`).join('')}</tbody>
       </table></div>` : '<p class="muted">No cache activity yet.</p>'}
+    </div>
+    <div class="card mt">
+      <div class="page-head">
+        <div><h2>TPS (24h)</h2><p>Validated real-traffic samples. Effective TPS includes time to first output.</p></div>
+      </div>
+      ${tpsRows.length ? `<div class="table-scroll"><table class="data-table">
+        <thead><tr><th>Model</th><th>Provider</th><th>Upstream</th><th class="num">Samples</th><th class="num">Effective TPS</th><th class="num">Content TPS</th><th class="num">TTFT</th></tr></thead>
+        <tbody>${tpsRows.map((row) => `
+          <tr>
+            <td>${escapeHtml(row.model)}</td>
+            <td>${escapeHtml(row.provider)}</td>
+            <td class="mono">${escapeHtml(row.upstreamModel ?? '—')}</td>
+            <td class="num">${fmtNum(row.samples)}</td>
+            <td class="num">${row.effectiveTps === null ? '—' : fmtTps(row.effectiveTps)}</td>
+            <td class="num">${row.contentTps === null ? '—' : fmtTps(row.contentTps)}</td>
+            <td class="num">${row.ttftMs === null ? '—' : `${fmtNum(row.ttftMs)}ms`}</td>
+          </tr>`).join('')}</tbody>
+      </table></div>` : '<p class="muted">No valid TPS samples in the last 24 hours.</p>'}
     </div>
     <div class="card mt">
       <div class="page-head">
